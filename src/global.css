@@ -1,9 +1,9 @@
-:root {
-  --font-display:
-    Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
-    Segoe UI Symbol, Noto Color Emoji;
-  --font-mono:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
-  --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
-  --font-serif: Georgia, 'Times New Roman', serif;
+* { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body { background: #FAFAFA; margin: 0; }
+@media (prefers-color-scheme: dark) { body { background: #0A0A0A; } }
+
+/* Material Symbols ligature support for web */
+[style*="MaterialSymbols"] {
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
 }
