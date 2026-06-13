@@ -9,6 +9,8 @@
  * Keep the argument shapes in sync with convex/userPreferences.ts.
  */
 
+import { useEffect, useState } from 'react';
+import * as SecureStore from 'expo-secure-store';
 import { makeFunctionReference } from 'convex/server';
 import { useAction, useMutation, useQuery } from 'convex/react';
 
@@ -62,6 +64,44 @@ export function useSavePreferences() {
  */
 export function useMyPreferences(): UserPreferencesRow | null | undefined {
   return useQuery(userPreferencesGet, {});
+}
+
+const PREFS_CACHE_KEY = 'cached_prefs_v1';
+
+/**
+ * Like `useMyPreferences` but reads a SecureStore cache synchronously on first
+ * render, so the UI has real data before the first Convex round-trip completes.
+ *
+ * Safety contract:
+ *  - Cache is only ever written FROM Convex data — never the other direction.
+ *  - Convex is always source of truth; cached data is display-only.
+ *  - Cache is cleared when Convex returns null (no onboarding row).
+ */
+export function useCachedPreferences(): UserPreferencesRow | null | undefined {
+  const [cached, setCached] = useState<UserPreferencesRow | null | undefined>(() => {
+    try {
+      const raw = SecureStore.getItem(PREFS_CACHE_KEY);
+      return raw ? (JSON.parse(raw) as UserPreferencesRow) : undefined;
+    } catch {
+      return undefined;
+    }
+  });
+
+  const live = useMyPreferences();
+
+  useEffect(() => {
+    if (live === undefined) return; // still loading — keep showing cache
+    setCached(live);
+    if (live !== null) {
+      try { SecureStore.setItem(PREFS_CACHE_KEY, JSON.stringify(live)); } catch {}
+    } else {
+      SecureStore.deleteItemAsync(PREFS_CACHE_KEY).catch(() => {});
+    }
+  }, [live]);
+
+  // Once Convex responds, use live data (authoritative).
+  // While loading, fall back to SecureStore cache.
+  return live !== undefined ? live : cached;
 }
 
 // ─── dailyLogs ─────────────────────────────────────────────────────────────

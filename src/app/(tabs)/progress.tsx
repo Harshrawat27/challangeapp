@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
-import { useDayRange, useMyPreferences, type DailyLog } from '@/lib/convex-api';
+import { useCachedPreferences, useDayRange, type DailyLog } from '@/lib/convex-api';
 import { buildTasks, localDateString } from '@/lib/tasks';
 import { Colors, Font, MaxContentWidth, Radius, type Theme } from '@/constants/theme';
 
@@ -188,7 +188,7 @@ export default function ProgressScreen() {
   const T = Colors[isDark ? 'dark' : 'light'];
   const { width: screenW } = useWindowDimensions();
 
-  const prefs = useMyPreferences();
+  const prefs = useCachedPreferences();
   const today = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
