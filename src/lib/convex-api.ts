@@ -144,6 +144,38 @@ export function useDay(date: string): DailyLog | null | undefined {
   return useQuery(dailyLogsGetDay, { date });
 }
 
+/**
+ * Like `useDay` but reads a SecureStore cache synchronously on first render.
+ * Cache is keyed by date so a new day always starts fresh (no stale completions).
+ * Assumes `date` is stable for the lifetime of the calling component.
+ */
+export function useCachedDay(date: string): DailyLog | null | undefined {
+  const cacheKey = `daily_log_v1_${date}`;
+
+  const [cached, setCached] = useState<DailyLog | null | undefined>(() => {
+    try {
+      const raw = SecureStore.getItem(cacheKey);
+      return raw ? (JSON.parse(raw) as DailyLog) : undefined;
+    } catch {
+      return undefined;
+    }
+  });
+
+  const live = useDay(date);
+
+  useEffect(() => {
+    if (live === undefined) return;
+    setCached(live);
+    if (live !== null) {
+      try { SecureStore.setItem(cacheKey, JSON.stringify(live)); } catch {}
+    } else {
+      SecureStore.deleteItemAsync(cacheKey).catch(() => {});
+    }
+  }, [live, cacheKey]);
+
+  return live !== undefined ? live : cached;
+}
+
 /** Subscribe to a date range (inclusive both ends). */
 export function useDayRange(from: string, to: string): DailyLog[] | undefined {
   return useQuery(dailyLogsGetRange, { from, to });
