@@ -99,7 +99,7 @@ export default function NotificationsScreen() {
   return (
     <OnboardingFrame
       step={13}
-      onContinue={() => router.push('/onboarding/account')}>
+      onContinue={() => router.push('/onboarding/username')}>
       <View style={{ flex: 1 }}>
         <Animated.View entering={FadeIn.duration(400)}>
           <Text style={{

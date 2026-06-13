@@ -6,7 +6,7 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { OnboardingFrame } from '@/components/onboarding-frame';
 import { Colors, Font, Radius, type Theme } from '@/constants/theme';
 import { useOnboarding } from '@/lib/onboarding-store';
-import { useSavePreferences } from '@/lib/convex-api';
+import { useSavePreferences, useClaimUsername } from '@/lib/convex-api';
 
 type Plan = {
   id: 'yearly' | 'monthly';
@@ -121,14 +121,28 @@ export default function PaywallScreen() {
 
   const { state: onboardingState } = useOnboarding();
   const savePreferences = useSavePreferences();
+  const claimUsername = useClaimUsername();
 
   const handleStartTrial = async () => {
-    // TODO: integrate RevenueCat / Stripe before this.
-    // Persist every onboarding answer to the user's row, then enter the app.
     if (saving) return;
     setSaving(true);
     try {
-      const todayLocal = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+      // Claim username here — deferred from account.tsx so the Convex auth
+      // token has time to sync after signUp before we call a mutation.
+      if (onboardingState.username) {
+        try {
+          await claimUsername({
+            username: onboardingState.username,
+            displayName: onboardingState.username,
+          });
+        } catch {
+          // Username was taken in the window between check and now.
+          setSaving(false);
+          router.replace('/onboarding/username');
+          return;
+        }
+      }
+      const todayLocal = new Date().toLocaleDateString('en-CA');
       await savePreferences({
         name: onboardingState.name,
         challenge: onboardingState.challenge ?? '75-hard',
@@ -143,8 +157,6 @@ export default function PaywallScreen() {
       });
       router.replace('/');
     } catch (e) {
-      // Soft-fail: still enter the app so a Convex hiccup doesn't strand a paid user.
-      // The home screen will detect missing prefs and surface a retry path later.
       console.warn('[paywall] failed to persist onboarding:', e);
       router.replace('/');
     } finally {
@@ -154,7 +166,7 @@ export default function PaywallScreen() {
 
   return (
     <OnboardingFrame
-      step={15}
+      step={16}
       onContinue={handleStartTrial}
       continueLabel={planId === 'yearly' ? 'Start free trial' : 'Subscribe'}
       continueLoading={saving}
@@ -176,7 +188,7 @@ export default function PaywallScreen() {
             fontFamily: Font.bodyMed, fontSize: 11, letterSpacing: 2.4, color: T.textDim,
             marginBottom: 12,
           }}>
-            STEP 14 — CHOOSE YOUR PLAN
+            STEP 15 — CHOOSE YOUR PLAN
           </Text>
         </Animated.View>
 

@@ -1,241 +1,238 @@
-import { Tabs } from 'expo-router';
-import {
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  useColorScheme,
-} from 'react-native';
+import { useState } from 'react';
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { router } from 'expo-router';
+import { Alert, Pressable, Text, View, useColorScheme } from 'react-native';
+import Animated, {
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  type SharedValue,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
-import { Colors, Font, Radius, type Theme } from '@/constants/theme';
+import { Colors, Font, type Theme } from '@/constants/theme';
 
-// Subset of React Navigation's BottomTabBarProps we actually use. Typing the
-// full thing requires reaching into expo-router internals — not worth it.
-type Route = { name: string; key: string; params?: object };
-type Nav = {
-  emit: (e: { type: 'tabPress'; target: string; canPreventDefault: true }) => { defaultPrevented: boolean };
-  navigate: (name: string, params?: object) => void;
-};
+// ─── Actions ────────────────────────────────────────────────────────────────
+// index 0 = closest to FAB, index 1 = furthest
 
-// ─── Per-route metadata ─────────────────────────────────────────────────────
+const ACTIONS = [
+  { key: 'picture', label: 'Take Picture', icon: 'photo_camera' },
+  { key: 'scan',    label: 'Scan Meal',    icon: 'document_scanner' },
+] as const;
 
-const ROUTE_ICON: Record<string, string> = {
-  index: 'home',
-  progress: 'bar_chart',
-  friends: 'groups',
-  profile: 'person',
-};
+const ITEM_H = 66; // visual height of each action row including gap
 
-const ROUTE_LABEL: Record<string, string> = {
-  index: 'Home',
-  progress: 'Progress',
-  friends: 'Friends',
-  profile: 'Profile',
-};
+// ─── Speed dial item ─────────────────────────────────────────────────────────
 
-// ─── Tab item ───────────────────────────────────────────────────────────────
-
-function TabItem({
-  routeName,
-  focused,
-  onPress,
-  T,
-  isDark,
+function SpeedDialItem({
+  label, icon, index, progress, onPress, T, isDark,
 }: {
-  routeName: string;
-  focused: boolean;
+  label: string;
+  icon: string;
+  index: number;
+  progress: SharedValue<number>;
   onPress: () => void;
   T: Theme;
   isDark: boolean;
 }) {
-  const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
+    transform: [{ translateY: interpolate(progress.value, [0, 1], [(index + 1) * ITEM_H, 0]) }],
+    opacity: interpolate(progress.value, [0, 0.25 + index * 0.1, 1], [0, 0, 1]),
   }));
 
-  const icon = ROUTE_ICON[routeName] ?? 'circle';
-  const label = ROUTE_LABEL[routeName] ?? routeName;
-  const activeBg = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)';
-
   return (
-    <Pressable
-      onPressIn={() => { scale.value = withSpring(0.94, { damping: 14, stiffness: 220 }); }}
-      onPressOut={() => { scale.value = withSpring(1, { damping: 14, stiffness: 220 }); }}
-      onPress={onPress}
-      style={{ flex: 1 }}>
-      <Animated.View
-        style={[
-          {
-            paddingVertical: 8,
-            borderRadius: Radius.pill,
-            backgroundColor: focused ? activeBg : 'transparent',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 2,
-          },
-          animStyle,
-        ]}>
-        <Text
-          selectable={false}
-          style={{
-            fontFamily: Font.icon,
-            fontSize: 22,
-            lineHeight: 24,
-            color: focused ? T.text : T.textDim,
-            includeFontPadding: false,
-          }}>
-          {icon}
-        </Text>
-        <Text
-          numberOfLines={1}
-          style={{
-            fontFamily: focused ? Font.displaySemi : Font.bodyMed,
-            fontSize: 10.5,
-            color: focused ? T.text : T.textDim,
-            letterSpacing: 0.1,
-          }}>
+    <Animated.View style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 }, animStyle]}>
+      {/* Label pill */}
+      <View style={{
+        backgroundColor: T.card,
+        borderRadius: 20,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        shadowColor: '#000',
+        shadowOpacity: isDark ? 0.25 : 0.08,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 8,
+        elevation: 4,
+      }}>
+        <Text style={{ fontFamily: Font.bodyMed, fontSize: 14, color: T.text }}>
           {label}
         </Text>
-      </Animated.View>
+      </View>
+      {/* Icon button */}
+      <Pressable onPress={onPress} hitSlop={8}>
+        <View style={{
+          width: 50,
+          height: 50,
+          borderRadius: 50,
+          backgroundColor: T.card,
+          justifyContent: 'center',
+          alignItems: 'center',
+          shadowColor: '#000',
+          shadowOpacity: isDark ? 0.3 : 0.1,
+          shadowOffset: { width: 0, height: 4 },
+          shadowRadius: 10,
+          elevation: 6,
+        }}>
+          <Text
+            selectable={false}
+            style={{
+              fontFamily: Font.icon,
+              fontSize: 22,
+              lineHeight: 24,
+              color: T.text,
+              includeFontPadding: false,
+            }}>
+            {icon}
+          </Text>
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+// ─── FAB (rotates + → ×) ─────────────────────────────────────────────────────
+
+function SpeedDialFAB({
+  progress, onPress, T, isDark,
+}: {
+  progress: SharedValue<number>;
+  onPress: () => void;
+  T: Theme;
+  isDark: boolean;
+}) {
+  const iconStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${interpolate(progress.value, [0, 1], [0, 45])}deg` }],
+  }));
+
+  return (
+    <Pressable onPress={onPress} hitSlop={8}>
+      <View style={{
+        width: 58,
+        height: 58,
+        borderRadius: 58,
+        backgroundColor: T.invertBg,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOpacity: isDark ? 0.5 : 0.18,
+        shadowOffset: { width: 0, height: 6 },
+        shadowRadius: 14,
+        elevation: 10,
+      }}>
+        <Animated.View style={[{ justifyContent: 'center', alignItems: 'center' }, iconStyle]}>
+          <Text
+            selectable={false}
+            style={{
+              fontFamily: Font.icon,
+              fontSize: 30,
+              lineHeight: 32,
+              color: T.invertText,
+              includeFontPadding: false,
+            }}>
+            add
+          </Text>
+        </Animated.View>
+      </View>
     </Pressable>
   );
 }
 
-// ─── Custom Tab Bar ─────────────────────────────────────────────────────────
+// ─── Layout ──────────────────────────────────────────────────────────────────
 
-function CustomTabBar({ state, navigation }: { state: { routes: ReadonlyArray<Route>; index: number }; navigation: Nav }) {
+export default function TabsLayout() {
   const isDark = useColorScheme() === 'dark';
   const T = Colors[isDark ? 'dark' : 'light'];
   const insets = useSafeAreaInsets();
+  const [isOpen, setIsOpen] = useState(false);
+  const progress = useSharedValue(0);
 
-  const handlePressAdd = () => {
-    Alert.alert(
-      'Quick add',
-      'Daily progress photo, quick log, and reflection note will live here.',
-      [{ text: 'OK' }],
-    );
+  // 49pt = standard iOS tab bar height
+  const fabBottom = insets.bottom + 49 + 16;
+
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 1], [0, 1]),
+  }));
+
+  const toggle = () => {
+    const opening = !isOpen;
+    setIsOpen(opening);
+    progress.value = withSpring(opening ? 1 : 0, { damping: 28, stiffness: 420, mass: 0.7 });
+  };
+
+  const close = () => {
+    setIsOpen(false);
+    progress.value = withSpring(0, { damping: 28, stiffness: 420, mass: 0.7 });
   };
 
   return (
-    <View
-      pointerEvents='box-none'
-      style={{
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: Math.max(insets.bottom, 12),
-        paddingHorizontal: 14,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-      }}>
-      {/* Pill — 4 tabs */}
+    <View style={{ flex: 1 }}>
+      <NativeTabs>
+        <NativeTabs.Trigger name='index'>
+          <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon sf='house.fill' md='home' />
+        </NativeTabs.Trigger>
+
+        <NativeTabs.Trigger name='progress'>
+          <NativeTabs.Trigger.Label>Progress</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon sf='chart.bar.fill' md='bar_chart' />
+        </NativeTabs.Trigger>
+
+        <NativeTabs.Trigger name='gallery'>
+          <NativeTabs.Trigger.Label>Photos</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon sf='photo.stack.fill' md='photo_library' />
+        </NativeTabs.Trigger>
+
+        <NativeTabs.Trigger name='friends'>
+          <NativeTabs.Trigger.Label>Friends</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon sf='person.2.fill' md='group' />
+        </NativeTabs.Trigger>
+
+        <NativeTabs.Trigger name='profile'>
+          <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon sf='person.fill' md='person' />
+        </NativeTabs.Trigger>
+      </NativeTabs>
+
+      {/* Dimmed backdrop — blocks touches to app when speed dial is open */}
+      <Animated.View
+        pointerEvents={isOpen ? 'auto' : 'none'}
+        style={[{
+          position: 'absolute',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: isDark ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.25)',
+        }, backdropStyle]}>
+        <Pressable style={{ flex: 1 }} onPress={close} />
+      </Animated.View>
+
+      {/* Speed dial — items stack above FAB, furthest-from-FAB rendered first (top) */}
       <View
-        style={{
-          flex: 1,
-          flexDirection: 'row',
-          backgroundColor: T.card,
-          borderRadius: Radius.pill,
-          paddingHorizontal: 6,
-          paddingVertical: 6,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: T.cardBorder,
-          shadowColor: '#000',
-          shadowOpacity: isDark ? 0.4 : 0.08,
-          shadowOffset: { width: 0, height: 6 },
-          shadowRadius: 18,
-          elevation: 8,
-        }}>
-        {state.routes.map((route, idx) => {
-          const focused = state.index === idx;
-          const onPress = () => {
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
-            if (!focused && !event.defaultPrevented) {
-              navigation.navigate(route.name, route.params);
-            }
-          };
+        pointerEvents='box-none'
+        style={{ position: 'absolute', bottom: fabBottom, right: 14, alignItems: 'flex-end' }}>
+        {[...ACTIONS].reverse().map((action, reverseIdx) => {
+          const originalIdx = ACTIONS.length - 1 - reverseIdx;
           return (
-            <TabItem
-              key={route.key}
-              routeName={route.name}
-              focused={focused}
-              onPress={onPress}
+            <SpeedDialItem
+              key={action.key}
+              label={action.label}
+              icon={action.icon}
+              index={originalIdx}
+              progress={progress}
+              onPress={() => {
+                close();
+                if (action.key === 'picture') {
+                  router.push('/camera');
+                } else if (action.key === 'scan') {
+                  router.push('/scan');
+                }
+              }}
               T={T}
               isDark={isDark}
             />
           );
         })}
+        <SpeedDialFAB progress={progress} onPress={toggle} T={T} isDark={isDark} />
       </View>
-
-      {/* + FAB */}
-      <PlusButton onPress={handlePressAdd} T={T} isDark={isDark} />
     </View>
-  );
-}
-
-function PlusButton({ onPress, T, isDark }: { onPress: () => void; T: Theme; isDark: boolean }) {
-  const scale = useSharedValue(1);
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  return (
-    <Pressable
-      onPressIn={() => { scale.value = withSpring(0.9, { damping: 12, stiffness: 240 }); }}
-      onPressOut={() => { scale.value = withSpring(1, { damping: 12, stiffness: 240 }); }}
-      onPress={onPress}>
-      <Animated.View
-        style={[
-          {
-            width: 58,
-            height: 58,
-            borderRadius: 58,
-            backgroundColor: T.invertBg,
-            justifyContent: 'center',
-            alignItems: 'center',
-            shadowColor: '#000',
-            shadowOpacity: isDark ? 0.5 : 0.18,
-            shadowOffset: { width: 0, height: 6 },
-            shadowRadius: 14,
-            elevation: 10,
-          },
-          animStyle,
-        ]}>
-        <Text
-          selectable={false}
-          style={{
-            fontFamily: Font.icon,
-            fontSize: 30,
-            lineHeight: 32,
-            color: T.invertText,
-            includeFontPadding: false,
-          }}>
-          add
-        </Text>
-      </Animated.View>
-    </Pressable>
-  );
-}
-
-// ─── Layout ─────────────────────────────────────────────────────────────────
-
-export default function TabsLayout() {
-  return (
-    <Tabs
-      tabBar={(props) => <CustomTabBar state={props.state as never} navigation={props.navigation as never} />}
-      screenOptions={{ headerShown: false }}>
-      {/* Order matters — declares left-to-right tab order */}
-      <Tabs.Screen name='index'    options={{ title: 'Home' }} />
-      <Tabs.Screen name='progress' options={{ title: 'Progress' }} />
-      <Tabs.Screen name='friends'  options={{ title: 'Friends' }} />
-      <Tabs.Screen name='profile'  options={{ title: 'Profile' }} />
-    </Tabs>
   );
 }

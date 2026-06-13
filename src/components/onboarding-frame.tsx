@@ -15,7 +15,7 @@ import { router } from 'expo-router';
 
 import { Colors, Font, MaxContentWidth, Radius } from '@/constants/theme';
 
-const TOTAL_STEPS = 15;
+const TOTAL_STEPS = 16;
 
 export function OnboardingFrame({
   step,
