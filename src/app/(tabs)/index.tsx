@@ -21,7 +21,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { authClient } from '@/lib/auth-client';
-import { useCachedPreferences, useDay, useMealsForDay, useNoteForDay, useToggleTask } from '@/lib/convex-api';
+import { useCachedDay, useCachedPreferences, useMealsForDay, useNoteForDay, useToggleTask } from '@/lib/convex-api';
 import { buildTasks, localDateString } from '@/lib/tasks';
 import { DayStrip } from '@/components/day-strip';
 import { type ChallengeTask } from '@/constants/challenges';
@@ -126,11 +126,25 @@ function TaskCard({
 }) {
   const v = useSharedValue(done ? 1 : 0);
   const labelW = useSharedValue(0);
+  // Tracks whether the most recent `done` change came from a press (animation
+  // already started) vs. external data arriving (Convex load / app reopen).
+  const pressInFlight = useRef(false);
 
   const handle = useCallback(() => {
+    pressInFlight.current = true;
     v.value = withTiming(done ? 0 : 1, { duration: 260, easing: Easing.out(Easing.cubic) });
     onToggle();
   }, [done, onToggle, v]);
+
+  // Sync visual state when external data changes (app reopen, Convex response).
+  // Skip when a press just triggered the change to avoid cancelling its animation.
+  useEffect(() => {
+    if (pressInFlight.current) {
+      pressInFlight.current = false;
+      return;
+    }
+    v.value = done ? 1 : 0;
+  }, [done, v]);
 
   const contentDim = useAnimatedStyle(() => ({
     opacity: interpolate(v.value, [0, 1], [1, 0.45]),
@@ -291,7 +305,7 @@ export default function Home() {
 
   // Today's persisted log + toggle mutation.
   const todayDateStr = useMemo(() => localDateString(now), [now]);
-  const todayLog = useDay(todayDateStr);
+  const todayLog = useCachedDay(todayDateStr);
   const todayMeals = useMealsForDay(todayDateStr);
   const todayNote = useNoteForDay(todayDateStr);
   const toggleTaskMutation = useToggleTask();
