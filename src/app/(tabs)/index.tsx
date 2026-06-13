@@ -21,7 +21,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { authClient } from '@/lib/auth-client';
-import { useDay, useMealsForDay, useMyPreferences, useNoteForDay, useToggleTask } from '@/lib/convex-api';
+import { useCachedPreferences, useDay, useMealsForDay, useNoteForDay, useToggleTask } from '@/lib/convex-api';
 import { buildTasks, localDateString } from '@/lib/tasks';
 import { DayStrip } from '@/components/day-strip';
 import { type ChallengeTask } from '@/constants/challenges';
@@ -264,7 +264,7 @@ export default function Home() {
   const T = Colors[isDark ? 'dark' : 'light'];
 
   // ─── User preferences (drives challenge, length, start date, custom habits) ─
-  const prefs = useMyPreferences();
+  const prefs = useCachedPreferences();
   const { data: session } = authClient.useSession();
 
   // Real local time, captured once at mount.
@@ -417,7 +417,7 @@ export default function Home() {
                   letterSpacing: -1.4,
                   lineHeight: 42,
                 }}>
-                  Day {currentDay}.
+                  Day {prefs === undefined ? '—' : currentDay}.
                 </Text>
                 <Text style={{
                   fontFamily: Font.bodyReg,

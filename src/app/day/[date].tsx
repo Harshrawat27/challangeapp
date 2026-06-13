@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
-import { useDay, useMealsForDay, useMyPreferences, useNoteForDay } from '@/lib/convex-api';
+import { useCachedPreferences, useDay, useMealsForDay, useNoteForDay } from '@/lib/convex-api';
 import { buildTasks, localDateString } from '@/lib/tasks';
 import { DayStrip } from '@/components/day-strip';
 import { Colors, Font, MaxContentWidth, Radius, type Theme } from '@/constants/theme';
@@ -183,7 +183,7 @@ export default function DayDetailScreen() {
   const log = useDay(date ?? '');
   const meals = useMealsForDay(date ?? '');
   const dayNote = useNoteForDay(date ?? '');
-  const prefs = useMyPreferences();
+  const prefs = useCachedPreferences();
 
   const dateObj = useMemo(() => (date ? parseISODate(date) : new Date()), [date]);
 
