@@ -8,7 +8,8 @@
     "scheme": "habittracker",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.harshrawat.habittracker"
     },
     "android": {
       "adaptiveIcon": {
@@ -35,8 +36,11 @@
           }
         }
       ],
+      ["expo-camera", { "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for progress photos." }],
+      ["expo-media-library", { "photosPermission": "Allow $(PRODUCT_NAME) to save your progress photos.", "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos." }],
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-image"
     ],
     "experiments": {
       "reactCompiler": true

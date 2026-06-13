@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Appearance,
   Linking,
   Pressable,
   ScrollView,
@@ -13,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import * as SecureStore from 'expo-secure-store';
 
 import { authClient } from '@/lib/auth-client';
 import { Colors, Font, MaxContentWidth, Radius, type Theme } from '@/constants/theme';
@@ -153,6 +155,22 @@ export default function ProfileScreen() {
   const [signingOut, setSigningOut] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const [themePref, setThemePref] = useState<'system' | 'light' | 'dark'>(() => {
+    const stored = SecureStore.getItem('theme_preference');
+    return (stored as 'system' | 'light' | 'dark' | null) ?? 'system';
+  });
+
+  const handleThemeChange = useCallback((pref: 'system' | 'light' | 'dark') => {
+    setThemePref(pref);
+    if (pref === 'system') {
+      Appearance.setColorScheme(null);
+      SecureStore.deleteItemAsync('theme_preference');
+    } else {
+      Appearance.setColorScheme(pref);
+      SecureStore.setItemAsync('theme_preference', pref);
+    }
+  }, []);
+
   const initial = useMemo(() => getInitial(user?.name, user?.email), [user]);
 
   const handleSignOut = useCallback(() => {
@@ -290,8 +308,57 @@ export default function ProfileScreen() {
             </Card>
           </Animated.View>
 
-          {/* ═══ About ═══════════════════════════════════════════════ */}
+          {/* ═══ Appearance ══════════════════════════════════════════ */}
           <Animated.View entering={FadeInDown.delay(200).duration(420)}>
+            <SectionLabel T={T}>Appearance</SectionLabel>
+            <Card T={T}>
+              <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14 }}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {(['system', 'light', 'dark'] as const).map(opt => {
+                    const selected = themePref === opt;
+                    const icons = { system: 'brightness_auto', light: 'light_mode', dark: 'dark_mode' };
+                    return (
+                      <Pressable
+                        key={opt}
+                        onPress={() => handleThemeChange(opt)}
+                        style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.7 : 1 })}>
+                        <View style={{
+                          paddingVertical: 10,
+                          borderRadius: Radius.md,
+                          backgroundColor: selected ? T.invertBg : T.background,
+                          borderWidth: selected ? 0 : StyleSheet.hairlineWidth,
+                          borderColor: T.cardBorder,
+                          alignItems: 'center',
+                          gap: 4,
+                        }}>
+                          <Text style={{
+                            fontFamily: Font.icon,
+                            fontSize: 20,
+                            lineHeight: 22,
+                            color: selected ? T.invertText : T.textDim,
+                            includeFontPadding: false,
+                          }}>
+                            {icons[opt]}
+                          </Text>
+                          <Text style={{
+                            fontFamily: Font.bodySemi,
+                            fontSize: 12,
+                            color: selected ? T.invertText : T.textDim,
+                            letterSpacing: -0.1,
+                          }}>
+                            {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            </Card>
+          </Animated.View>
+
+          {/* ═══ About ═══════════════════════════════════════════════ */}
+          <Animated.View entering={FadeInDown.delay(280).duration(420)}>
             <SectionLabel T={T}>About</SectionLabel>
             <Card T={T}>
               <Row label='Version' value={APP_VERSION} T={T} />
@@ -318,7 +385,7 @@ export default function ProfileScreen() {
           </Animated.View>
 
           {/* ═══ Sign out ═══════════════════════════════════════════ */}
-          <Animated.View entering={FadeInDown.delay(280).duration(420)} style={{ marginTop: 28 }}>
+          <Animated.View entering={FadeInDown.delay(360).duration(420)} style={{ marginTop: 28 }}>
             <Card T={T}>
               <Row
                 label='Sign out'
@@ -331,7 +398,7 @@ export default function ProfileScreen() {
           </Animated.View>
 
           {/* ═══ Danger zone ════════════════════════════════════════ */}
-          <Animated.View entering={FadeInDown.delay(340).duration(420)} style={{ marginTop: 16 }}>
+          <Animated.View entering={FadeInDown.delay(420).duration(420)} style={{ marginTop: 16 }}>
             <Card T={T}>
               <Row
                 label='Delete account'

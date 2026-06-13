@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import Animated, {
   Easing,
   FadeIn,
@@ -20,8 +21,10 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { authClient } from '@/lib/auth-client';
-import { useMyPreferences } from '@/lib/convex-api';
-import { getChallenge, type ChallengeId, type ChallengeTask } from '@/constants/challenges';
+import { useDay, useMealsForDay, useMyPreferences, useNoteForDay, useToggleTask } from '@/lib/convex-api';
+import { buildTasks, localDateString } from '@/lib/tasks';
+import { DayStrip } from '@/components/day-strip';
+import { type ChallengeTask } from '@/constants/challenges';
 import { Colors, Font, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 
 // ─── Domain ─────────────────────────────────────────────────────────────────
@@ -49,142 +52,7 @@ function Icon({ name, size, color }: { name: string; size: number; color: string
   );
 }
 
-// ─── Day strip — calendar dates, horizontally scrollable ────────────────────
-
-function DayStrip({
-  todayDate,
-  challengeStart,
-  totalDays,
-  ink,
-  invertBg,
-  invertText,
-  cardBg,
-  cardBorder,
-  dim,
-  edgePadding,
-  selectedIdx,
-  onSelect,
-}: {
-  todayDate: Date;
-  challengeStart: Date;
-  totalDays: number;
-  ink: string;
-  invertBg: string;
-  invertText: string;
-  cardBg: string;
-  cardBorder: string;
-  dim: string;
-  edgePadding: number;
-  selectedIdx: number;
-  onSelect: (idx: number) => void;
-}) {
-  const PILL = 50;
-  const GAP = 10;
-  const SLOT = PILL + GAP;
-
-  const todayIndex = Math.max(0, Math.min(
-    totalDays - 1,
-    Math.floor((+todayDate - +challengeStart) / 86_400_000),
-  ));
-
-  const scrollRef = useRef<ScrollView>(null);
-
-  useEffect(() => {
-    // place today as ~3rd visible pill from left
-    const offset = Math.max(0, (todayIndex - 2) * SLOT);
-    const t = setTimeout(() => {
-      scrollRef.current?.scrollTo({ x: offset, animated: false });
-    }, 0);
-    return () => clearTimeout(t);
-  }, [todayIndex]);
-
-  const days = useMemo(
-    () => Array.from({ length: totalDays }).map((_, i) => {
-      const d = new Date(challengeStart);
-      d.setDate(challengeStart.getDate() + i);
-      return d;
-    }),
-    [challengeStart, totalDays],
-  );
-
-  return (
-    <View style={{ marginHorizontal: -edgePadding }}>
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        decelerationRate="fast"
-        contentContainerStyle={{
-          paddingHorizontal: edgePadding,
-          gap: GAP,
-          alignItems: 'flex-start',
-          paddingVertical: 4,
-        }}>
-        {days.map((d, i) => {
-          const isToday = i === todayIndex;
-          const isSelected = i === selectedIdx;
-          const isPast = i < todayIndex;
-          const isFuture = i > todayIndex;
-          const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
-          const dayNum = d.getDate();
-
-          // Visual: selected pill always filled; today gets ring if not selected
-          const filled = isSelected;
-          const showTodayRing = isToday && !isSelected;
-
-          return (
-            <Pressable
-              key={i}
-              onPress={() => onSelect(i)}
-              disabled={isFuture}
-              style={({ pressed }) => ({
-                width: PILL,
-                alignItems: 'center',
-                gap: 6,
-                opacity: pressed && !isFuture ? 0.6 : 1,
-              })}>
-              <Text style={{
-                fontFamily: Font.bodyMed,
-                fontSize: 10.5,
-                color: isSelected ? ink : (isFuture ? dim : ink),
-                letterSpacing: 0.3,
-                opacity: isFuture ? 0.5 : 0.75,
-              }}>
-                {weekday.toUpperCase()}
-              </Text>
-              <View style={{
-                width: PILL,
-                height: PILL,
-                borderRadius: PILL / 2,
-                backgroundColor: filled ? invertBg : cardBg,
-                borderWidth: showTodayRing ? 1.5 : StyleSheet.hairlineWidth,
-                borderColor: showTodayRing ? invertBg : cardBorder,
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}>
-                <Text style={{
-                  fontFamily: filled ? Font.displayBold : Font.displaySemi,
-                  fontSize: 17,
-                  color: filled ? invertText : ink,
-                  letterSpacing: -0.4,
-                  opacity: isFuture ? 0.45 : 1,
-                }}>
-                  {dayNum}
-                </Text>
-              </View>
-              {/* underline indicator for past completed days */}
-              <View style={{
-                width: 5, height: 5, borderRadius: 5,
-                backgroundColor: isPast ? ink : 'transparent',
-                opacity: 0.85,
-              }} />
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-}
+// DayStrip moved to @/components/day-strip — shared between Home and Day Detail.
 
 // ─── 75-day progress dot row ────────────────────────────────────────────────
 
@@ -257,9 +125,10 @@ function TaskCard({
   invertText: string;
 }) {
   const v = useSharedValue(done ? 1 : 0);
+  const labelW = useSharedValue(0);
 
   const handle = useCallback(() => {
-    v.value = withTiming(done ? 0 : 1, { duration: 220, easing: Easing.out(Easing.cubic) });
+    v.value = withTiming(done ? 0 : 1, { duration: 260, easing: Easing.out(Easing.cubic) });
     onToggle();
   }, [done, onToggle, v]);
 
@@ -272,6 +141,13 @@ function TaskCard({
   }));
   const checkOutline = useAnimatedStyle(() => ({
     opacity: interpolate(v.value, [0, 1], [1, 0]),
+  }));
+  // Clip container matches the text's intrinsic width (not the flex container)
+  const clipStyle = useAnimatedStyle(() => ({ width: labelW.value }));
+  // Line slides from left (-labelW) to 0 inside that clip
+  const strikeStyle = useAnimatedStyle(() => ({
+    width: labelW.value,
+    transform: [{ translateX: interpolate(v.value, [0, 1], [-labelW.value, 0]) }],
   }));
 
   return (
@@ -307,14 +183,30 @@ function TaskCard({
 
         {/* Label + meta */}
         <Animated.View style={[{ flex: 1, gap: 3 }, contentDim]}>
-          <Text style={{
-            fontFamily: Font.displaySemi,
-            fontSize: 16,
-            color: ink,
-            letterSpacing: -0.2,
-          }}>
-            {task.label}
-          </Text>
+          {/* alignSelf:'flex-start' shrinks the wrapper to text content width */}
+          <View
+            onLayout={(e) => { labelW.value = e.nativeEvent.layout.width; }}
+            style={{ alignSelf: 'flex-start' }}>
+            <Text style={{
+              fontFamily: Font.displaySemi,
+              fontSize: 16,
+              color: ink,
+              letterSpacing: -0.2,
+            }}>
+              {task.label}
+            </Text>
+            {/* Clip container is exactly text-wide; line slides inside it */}
+            <Animated.View
+              pointerEvents='none'
+              style={[{
+                position: 'absolute',
+                top: 0, bottom: 0, left: 0,
+                justifyContent: 'center',
+                overflow: 'hidden',
+              }, clipStyle]}>
+              <Animated.View style={[{ height: 1, backgroundColor: ink }, strikeStyle]} />
+            </Animated.View>
+          </View>
           <Text style={{
             fontFamily: Font.bodyReg,
             fontSize: 12.5,
@@ -392,17 +284,17 @@ export default function Home() {
   const totalDays = prefs?.challengeLength ?? 75;
 
   // Build today's task list from the chosen challenge + any custom habits.
-  const TASKS: TaskDef[] = useMemo(() => {
-    const ch = getChallenge((prefs?.challenge as ChallengeId | undefined) ?? null);
-    const base = ch?.tasks ?? [];
-    const custom: ChallengeTask[] = (prefs?.customHabits ?? []).map((label, i) => ({
-      id: `custom-${i}-${label}`,
-      icon: 'task_alt',
-      label,
-      meta: 'Custom',
-    }));
-    return [...base, ...custom];
-  }, [prefs?.challenge, prefs?.customHabits]);
+  const TASKS: TaskDef[] = useMemo(
+    () => buildTasks(prefs?.challenge, prefs?.customHabits),
+    [prefs?.challenge, prefs?.customHabits],
+  );
+
+  // Today's persisted log + toggle mutation.
+  const todayDateStr = useMemo(() => localDateString(now), [now]);
+  const todayLog = useDay(todayDateStr);
+  const todayMeals = useMealsForDay(todayDateStr);
+  const todayNote = useNoteForDay(todayDateStr);
+  const toggleTaskMutation = useToggleTask();
 
   const currentDay = Math.max(
     1,
@@ -417,15 +309,44 @@ export default function Home() {
     return n.split(/\s+/)[0];
   }, [prefs?.name, session?.user?.name]);
 
-  const [done, setDone] = useState<Set<string>>(new Set());
+  // `done` is derived from the persisted log. Optimistic state is layered on
+  // top so taps feel instant even while the mutation is in flight.
+  const [optimistic, setOptimistic] = useState<{ id: string; checked: boolean } | null>(null);
+  const serverDone = useMemo(
+    () => new Set(todayLog ? Object.keys(todayLog.completions) : []),
+    [todayLog],
+  );
+  const done = useMemo(() => {
+    if (!optimistic) return serverDone;
+    const n = new Set(serverDone);
+    optimistic.checked ? n.add(optimistic.id) : n.delete(optimistic.id);
+    return n;
+  }, [serverDone, optimistic]);
+
+  // Drop optimistic state once the server result reflects it.
+  useEffect(() => {
+    if (!optimistic) return;
+    const reflected = serverDone.has(optimistic.id) === optimistic.checked;
+    if (reflected) setOptimistic(null);
+  }, [optimistic, serverDone]);
+
   const [selectedIdx, setSelectedIdx] = useState(todayIdx);
-  const toggle = useCallback((id: string) => {
-    setDone(prev => {
-      const n = new Set(prev);
-      n.has(id) ? n.delete(id) : n.add(id);
-      return n;
-    });
-  }, []);
+  const toggle = useCallback(
+    (id: string) => {
+      const willBeChecked = !done.has(id);
+      setOptimistic({ id, checked: willBeChecked });
+      toggleTaskMutation({
+        date: todayDateStr,
+        taskId: id,
+        allTaskIds: TASKS.map(t => t.id),
+        todayLocal: todayDateStr,
+      }).catch(() => {
+        // Rollback optimistic state on failure.
+        setOptimistic(null);
+      });
+    },
+    [done, todayDateStr, TASKS, toggleTaskMutation],
+  );
 
   // Keep the day-strip selection synced to "today" once prefs load and we know
   // the real start date.
@@ -509,7 +430,7 @@ export default function Home() {
                 </Text>
               </View>
 
-              {/* Streak/notif pill */}
+              {/* Notifications pill */}
               <Pressable style={({ pressed }) => ({
                 width: 46, height: 46, borderRadius: 46,
                 borderWidth: StyleSheet.hairlineWidth,
@@ -538,7 +459,17 @@ export default function Home() {
               dim={T.textDim}
               edgePadding={HPAD}
               selectedIdx={selectedIdx}
-              onSelect={setSelectedIdx}
+              onSelect={(idx) => {
+                if (idx === todayIdx) {
+                  setSelectedIdx(idx); // already on home — just visual select
+                  return;
+                }
+                if (idx > todayIdx) return; // future — disabled (also enforced inside DayStrip)
+                // Past day → push to Day Detail
+                const target = new Date(challengeStart);
+                target.setDate(challengeStart.getDate() + idx);
+                router.push(`/day/${localDateString(target)}`);
+              }}
             />
           </View>
 
@@ -655,7 +586,7 @@ export default function Home() {
             <View style={{
               flexDirection: 'row',
               justifyContent: 'space-between',
-              alignItems: 'baseline',
+              alignItems: 'center',
               marginBottom: Spacing.four,
             }}>
               <Text style={{
@@ -666,14 +597,37 @@ export default function Home() {
               }}>
                 Today's tasks
               </Text>
-              <Text style={{
-                fontFamily: Font.bodySemi,
-                fontSize: 13,
-                color: T.textDim,
-                letterSpacing: -0.1,
-              }}>
-                {doneCount}/{TASKS.length} done
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Pressable
+                  onPress={() => router.push(`/note/${todayDateStr}`)}
+                  hitSlop={8}
+                  style={({ pressed }) => ({
+                    width: 30, height: 30, borderRadius: 30,
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: todayNote?.note ? T.text : T.cardBorder,
+                    backgroundColor: todayNote?.note ? T.invertBg : T.card,
+                    justifyContent: 'center', alignItems: 'center',
+                    opacity: pressed ? 0.6 : 1,
+                  })}>
+                  <Text style={{
+                    fontFamily: Font.icon,
+                    fontSize: 16,
+                    lineHeight: 18,
+                    color: todayNote?.note ? T.invertText : T.text,
+                    includeFontPadding: false,
+                  }}>
+                    edit_note
+                  </Text>
+                </Pressable>
+                <Text style={{
+                  fontFamily: Font.bodySemi,
+                  fontSize: 13,
+                  color: T.textDim,
+                  letterSpacing: -0.1,
+                }}>
+                  {doneCount}/{TASKS.length} done
+                </Text>
+              </View>
             </View>
 
             {TASKS.map((t, i) => (
@@ -692,6 +646,130 @@ export default function Home() {
               />
             ))}
           </Animated.View>
+
+          {/* ═══ Today's Nutrition ══════════════════════════════════ */}
+          {todayMeals && todayMeals.length > 0 && (() => {
+            const totalCal = todayMeals.reduce((s, m) => s + m.calories, 0);
+            const totalP   = todayMeals.reduce((s, m) => s + m.protein, 0);
+            const totalC   = todayMeals.reduce((s, m) => s + m.carbs, 0);
+            const totalF   = todayMeals.reduce((s, m) => s + m.fat, 0);
+            return (
+              <Animated.View
+                entering={FadeInDown.delay(480).duration(420)}
+                style={{ marginTop: Spacing.five }}>
+                <View style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'baseline',
+                  marginBottom: Spacing.four,
+                }}>
+                  <Text style={{
+                    fontFamily: Font.displayBold, fontSize: 22,
+                    color: T.text, letterSpacing: -0.5,
+                  }}>
+                    Today's nutrition
+                  </Text>
+                  <Text style={{
+                    fontFamily: Font.bodySemi, fontSize: 13,
+                    color: T.textDim, letterSpacing: -0.1,
+                  }}>
+                    {todayMeals.length} {todayMeals.length === 1 ? 'meal' : 'meals'}
+                  </Text>
+                </View>
+                <View style={{
+                  backgroundColor: T.card,
+                  borderRadius: Radius.lg,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderColor: T.cardBorder,
+                  padding: 16,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                }}>
+                  {/* Calories */}
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Icon name='local_fire_department' size={16} color='#FB923C' />
+                      <Text style={{
+                        fontFamily: Font.displayBlack, fontSize: 28,
+                        color: T.text, letterSpacing: -0.8,
+                      }}>
+                        {totalCal}
+                      </Text>
+                      <Text style={{
+                        fontFamily: Font.bodyMed, fontSize: 12,
+                        color: T.textDim, paddingTop: 6,
+                      }}>
+                        kcal
+                      </Text>
+                    </View>
+                  </View>
+                  {/* Macros */}
+                  <View style={{ gap: 6, alignItems: 'flex-end' }}>
+                    {([['P', totalP], ['C', totalC], ['F', totalF]] as [string, number][]).map(([label, val]) => (
+                      <View key={label} style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                        <Text style={{ fontFamily: Font.bodyMed, fontSize: 12, color: T.textDim, width: 14 }}>{label}</Text>
+                        <Text style={{ fontFamily: Font.bodySemi, fontSize: 13, color: T.text, minWidth: 36, textAlign: 'right' }}>
+                          {val}g
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Meal-by-meal list */}
+                <View style={{
+                  marginTop: 10,
+                  backgroundColor: T.card,
+                  borderRadius: Radius.lg,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderColor: T.cardBorder,
+                  overflow: 'hidden',
+                }}>
+                  {todayMeals.map((meal, i) => (
+                    <View
+                      key={meal._id}
+                      style={{
+                        paddingHorizontal: 16,
+                        paddingVertical: 13,
+                        borderBottomWidth: i === todayMeals.length - 1 ? 0 : StyleSheet.hairlineWidth,
+                        borderBottomColor: T.hairline,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 12,
+                      }}>
+                      <Text style={{
+                        fontFamily: Font.icon, fontSize: 18, lineHeight: 20,
+                        color: '#FB923C', includeFontPadding: false,
+                      }}>
+                        local_fire_department
+                      </Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{
+                          fontFamily: Font.displaySemi, fontSize: 14,
+                          color: T.text, letterSpacing: -0.2,
+                        }}>
+                          {meal.name}
+                        </Text>
+                        <Text style={{
+                          fontFamily: Font.bodyReg, fontSize: 11.5,
+                          color: T.textDim, marginTop: 1,
+                        }}>
+                          P {meal.protein}g · C {meal.carbs}g · F {meal.fat}g
+                        </Text>
+                      </View>
+                      <Text style={{
+                        fontFamily: Font.displayBold, fontSize: 14,
+                        color: T.text, letterSpacing: -0.2,
+                      }}>
+                        {meal.calories}
+                        <Text style={{ fontFamily: Font.bodyReg, fontSize: 11, color: T.textDim }}> kcal</Text>
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </Animated.View>
+            );
+          })()}
 
         </ScrollView>
       </SafeAreaView>

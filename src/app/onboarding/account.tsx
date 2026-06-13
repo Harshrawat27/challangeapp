@@ -63,17 +63,19 @@ export default function AccountScreen() {
       email: email.trim().toLowerCase(),
       password,
     });
-    setLoading(false);
     if (err) {
+      setLoading(false);
       setError(err.message ?? 'Could not create account.');
       return;
     }
+    // Username is claimed in paywall.tsx once the Convex auth token has synced.
+    setLoading(false);
     router.push('/onboarding/paywall');
   };
 
   return (
     <OnboardingFrame
-      step={14}
+      step={15}
       onContinue={handleSubmit}
       continueDisabled={!canSubmit}
       continueLoading={loading}
@@ -84,7 +86,7 @@ export default function AccountScreen() {
             fontFamily: Font.bodyMed, fontSize: 11, letterSpacing: 2.4, color: T.textDim,
             marginBottom: 12,
           }}>
-            STEP 13 — LOCK IT IN
+            STEP 14 — LOCK IT IN
           </Text>
         </Animated.View>
 

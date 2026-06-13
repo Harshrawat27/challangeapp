@@ -19,8 +19,12 @@ import {
 } from '@expo-google-fonts/manrope';
 import { MaterialSymbols_400Regular } from '@expo-google-fonts/material-symbols';
 
+import { Appearance } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
+
 import { authClient } from '@/lib/auth-client';
 import { ConvexAuthSetup } from '@/lib/auth/ConvexAuthSetup';
+import { OnboardingProvider } from '@/lib/onboarding-store';
 import { Colors } from '@/constants/theme';
 
 function isUnauthedRoute(pathname: string): boolean {
@@ -38,6 +42,13 @@ function RootLayoutNav() {
   const { data: session, isPending } = authClient.useSession();
   const pathname = usePathname();
   const hasRouted = useRef(false);
+
+  // Tracks whether the session has ever resolved. Once it has, we never tear
+  // down the Stack again — even if `isPending` flips back to true during a
+  // refresh after sign-up. Tearing it down would unmount every Provider inside
+  // (including OnboardingProvider when it was nested) and wipe form state.
+  const hasResolved = useRef(false);
+  if (!isPending) hasResolved.current = true;
 
   useEffect(() => {
     if (isPending) return;
@@ -61,7 +72,8 @@ function RootLayoutNav() {
     hasRouted.current = true;
   }, [session, isPending, pathname]);
 
-  if (isPending) {
+  // Initial-cold-start loader only.
+  if (!hasResolved.current) {
     return (
       <View style={{ flex: 1, backgroundColor: bg, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator color={colorScheme === 'dark' ? '#FAFAFA' : '#0A0A0A'} />
@@ -72,11 +84,17 @@ function RootLayoutNav() {
   return (
     <>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: bg } }}>
+      <Stack screenOptions={{ headerShown: false, animation: 'none', contentStyle: { backgroundColor: bg } }}>
         <Stack.Screen name='(tabs)' />
         <Stack.Screen name='onboarding' />
         <Stack.Screen name='sign-up' />
         <Stack.Screen name='sign-in' />
+        <Stack.Screen name='day/[date]' />
+        <Stack.Screen name='friend/[userId]' />
+        <Stack.Screen name='note/[date]' options={{ presentation: 'fullScreenModal' }} />
+        <Stack.Screen name='camera' options={{ presentation: 'fullScreenModal' }} />
+        <Stack.Screen name='scan' options={{ presentation: 'fullScreenModal' }} />
+        <Stack.Screen name='photo-viewer' options={{ presentation: 'fullScreenModal' }} />
       </Stack>
     </>
   );
@@ -84,6 +102,14 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    const stored = SecureStore.getItem('theme_preference');
+    if (stored === 'light' || stored === 'dark') {
+      Appearance.setColorScheme(stored);
+    }
+  }, []);
+
   const [loaded] = useFonts({
     BricolageGrotesque_500Medium,
     BricolageGrotesque_600SemiBold,
@@ -102,7 +128,11 @@ export default function RootLayout() {
 
   return (
     <ConvexAuthSetup>
-      <RootLayoutNav />
+      {/* OnboardingProvider lives ABOVE RootLayoutNav so it survives any
+          mount/unmount cycle triggered by auth state changes. */}
+      <OnboardingProvider>
+        <RootLayoutNav />
+      </OnboardingProvider>
     </ConvexAuthSetup>
   );
 }
