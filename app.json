@@ -39,6 +39,7 @@
       ["expo-camera", { "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for progress photos." }],
       ["expo-media-library", { "photosPermission": "Allow $(PRODUCT_NAME) to save your progress photos.", "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos." }],
       "expo-secure-store",
+      "expo-notifications",
       "expo-web-browser",
       "expo-image"
     ],

@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Linking, Platform, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { router } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { OnboardingFrame } from '@/components/onboarding-frame';
@@ -82,6 +83,32 @@ function ReminderRow({
   );
 }
 
+// Request OS permission. Returns true if granted.
+async function requestNotificationPermission(): Promise<boolean> {
+  // On Android 12 and below, permission is auto-granted.
+  if (Platform.OS === 'android' && (Platform.Version as number) < 33) return true;
+
+  const { status: existing } = await Notifications.getPermissionsAsync();
+  if (existing === 'granted') return true;
+
+  // undetermined = first time asking (Apple shows the system dialog).
+  // denied = user already said no — dialog won't show, send to Settings.
+  if (existing === 'denied') {
+    Alert.alert(
+      'Notifications blocked',
+      'You\'ve previously declined notifications. To receive reminders, enable them in Settings.',
+      [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ],
+    );
+    return false;
+  }
+
+  const { status } = await Notifications.requestPermissionsAsync();
+  return status === 'granted';
+}
+
 export default function NotificationsScreen() {
   const isDark = useColorScheme() === 'dark';
   const T = Colors[isDark ? 'dark' : 'light'];
@@ -92,8 +119,27 @@ export default function NotificationsScreen() {
     evening: true,
   });
 
+  // Track whether we've already triggered the OS permission request this session.
+  const permissionRequested = useRef(false);
+
+  // All toggles start ON — ask for permission on mount so the system dialog
+  // appears as soon as the user sees this screen (they've implicitly said "yes"
+  // by reaching this step with reminders pre-enabled).
+  useEffect(() => {
+    if (permissionRequested.current) return;
+    permissionRequested.current = true;
+    requestNotificationPermission();
+  }, []);
+
   const toggle = (id: string) => {
-    setEnabled(prev => ({ ...prev, [id]: !prev[id] }));
+    const willBeEnabled = !enabled[id];
+    setEnabled(prev => ({ ...prev, [id]: willBeEnabled }));
+
+    // If user is turning a reminder ON and we haven't asked yet, ask now.
+    if (willBeEnabled && !permissionRequested.current) {
+      permissionRequested.current = true;
+      requestNotificationPermission();
+    }
   };
 
   return (
