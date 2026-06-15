@@ -15,8 +15,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import * as SecureStore from 'expo-secure-store';
+import { router } from 'expo-router';
 
 import { authClient } from '@/lib/auth-client';
+import { useCachedPreferences, useChallengeHistory, usePatchPrefs } from '@/lib/convex-api';
+import { getChallenge } from '@/constants/challenges';
+import { localDateString } from '@/lib/tasks';
 import { Colors, Font, MaxContentWidth, Radius, type Theme } from '@/constants/theme';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -229,6 +233,52 @@ export default function ProfileScreen() {
     });
   }, []);
 
+  // ── Challenge & water ──────────────────────────────────────────────────────
+  const prefs = useCachedPreferences();
+  const patchPrefs = usePatchPrefs();
+  const history = useChallengeHistory();
+
+  const challengeStatus = useMemo(() => {
+    if (!prefs) return null;
+    const ch = getChallenge(prefs.challenge as never);
+    const today = localDateString();
+    const daysPassed = prefs.challengeStartDate
+      ? Math.floor((new Date(today).getTime() - new Date(prefs.challengeStartDate).getTime()) / 86400000)
+      : 0;
+    const currentDay = Math.max(1, Math.min(daysPassed + 1, prefs.challengeLength));
+    const isComplete = daysPassed >= prefs.challengeLength;
+    return { name: ch?.name ?? prefs.challenge, currentDay, total: prefs.challengeLength, isComplete };
+  }, [prefs]);
+
+  const WATER_STEP = 250;
+  const WATER_MIN = 500;
+  const WATER_MAX = 6000;
+  const serverGoal = prefs?.waterGoalMl ?? 2500;
+  const [waterGoal, setWaterGoal] = useState(serverGoal);
+  const [waterSaving, setWaterSaving] = useState(false);
+  const [waterSaved, setWaterSaved] = useState(false);
+  const waterChanged = waterGoal !== serverGoal;
+
+  const adjustWater = (delta: number) =>
+    setWaterGoal(g => Math.max(WATER_MIN, Math.min(WATER_MAX, g + delta)));
+
+  const handleSaveWater = async () => {
+    if (waterSaving) return;
+    setWaterSaving(true);
+    try {
+      await patchPrefs({ waterGoalMl: waterGoal });
+      setWaterSaved(true);
+      setTimeout(() => setWaterSaved(false), 1500);
+    } catch {
+      Alert.alert('Error', 'Could not save. Please try again.');
+    } finally {
+      setWaterSaving(false);
+    }
+  };
+
+  const mlLabel = (ml: number) =>
+    ml >= 1000 ? `${(ml / 1000).toFixed(1).replace('.0', '')}L` : `${ml}ml`;
+
   return (
     <View style={{ flex: 1, backgroundColor: T.background, alignItems: 'center' }}>
       <SafeAreaView style={{ flex: 1, width: '100%', maxWidth: MaxContentWidth }} edges={['top']}>
@@ -353,6 +403,123 @@ export default function ProfileScreen() {
                     );
                   })}
                 </View>
+              </View>
+            </Card>
+          </Animated.View>
+
+          {/* ═══ Challenge ═══════════════════════════════════════════ */}
+          <Animated.View entering={FadeInDown.delay(240).duration(420)}>
+            <SectionLabel T={T}>Challenge</SectionLabel>
+            <Card T={T}>
+              {challengeStatus && (
+                <View style={{
+                  paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12,
+                  borderBottomWidth: StyleSheet.hairlineWidth,
+                  borderBottomColor: T.hairline,
+                }}>
+                  <Text style={{
+                    fontFamily: Font.displaySemi, fontSize: 15,
+                    color: T.text, letterSpacing: -0.2,
+                  }}>
+                    {challengeStatus.name}
+                  </Text>
+                  <Text style={{
+                    fontFamily: Font.bodyReg, fontSize: 13,
+                    color: challengeStatus.isComplete ? '#22C55E' : T.textDim,
+                    marginTop: 2,
+                  }}>
+                    {challengeStatus.isComplete
+                      ? `Completed · ${challengeStatus.total} days`
+                      : `Day ${challengeStatus.currentDay} of ${challengeStatus.total}`}
+                  </Text>
+                </View>
+              )}
+              <Row
+                label='Change challenge'
+                chevron
+                onPress={() => router.push('/change-challenge')}
+                T={T}
+              />
+              <Row
+                label='Challenge history'
+                value={history?.length ? `${history.length} run${history.length === 1 ? '' : 's'}` : undefined}
+                chevron
+                onPress={() => router.push('/challenge-history')}
+                isLast
+                T={T}
+              />
+            </Card>
+          </Animated.View>
+
+          {/* ═══ Hydration ═══════════════════════════════════════════ */}
+          <Animated.View entering={FadeInDown.delay(260).duration(420)}>
+            <SectionLabel T={T}>Hydration</SectionLabel>
+            <Card T={T}>
+              <View style={{ padding: 16, gap: 12 }}>
+                <Text style={{
+                  fontFamily: Font.bodySemi, fontSize: 14,
+                  color: T.text, letterSpacing: -0.1,
+                }}>
+                  Daily water goal
+                </Text>
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: T.background,
+                  borderRadius: Radius.md,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderColor: T.cardBorder,
+                  overflow: 'hidden',
+                }}>
+                  <Pressable
+                    onPress={() => adjustWater(-WATER_STEP)}
+                    style={({ pressed }) => ({
+                      width: 52, height: 52,
+                      justifyContent: 'center', alignItems: 'center',
+                      opacity: pressed ? 0.5 : 1,
+                    })}>
+                    <Text style={{ fontFamily: Font.displayBold, fontSize: 22, color: T.text }}>−</Text>
+                  </Pressable>
+                  <View style={{ flex: 1, alignItems: 'center' }}>
+                    <Text style={{
+                      fontFamily: Font.displayBlack, fontSize: 24,
+                      color: T.text, letterSpacing: -0.8,
+                    }}>
+                      {mlLabel(waterGoal)}
+                    </Text>
+                    <Text style={{ fontFamily: Font.bodyReg, fontSize: 10, color: T.textDim }}>
+                      per day
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => adjustWater(WATER_STEP)}
+                    style={({ pressed }) => ({
+                      width: 52, height: 52,
+                      justifyContent: 'center', alignItems: 'center',
+                      opacity: pressed ? 0.5 : 1,
+                    })}>
+                    <Text style={{ fontFamily: Font.displayBold, fontSize: 22, color: T.text }}>+</Text>
+                  </Pressable>
+                </View>
+                {(waterChanged || waterSaved) && (
+                  <Pressable
+                    onPress={handleSaveWater}
+                    disabled={waterSaving || waterSaved}
+                    style={({ pressed }) => ({
+                      backgroundColor: waterSaved ? '#22C55E' : T.invertBg,
+                      borderRadius: Radius.md,
+                      paddingVertical: 12,
+                      alignItems: 'center',
+                      opacity: pressed || waterSaving ? 0.6 : 1,
+                    })}>
+                    <Text style={{
+                      fontFamily: Font.displayBold, fontSize: 14,
+                      color: T.invertText, letterSpacing: -0.2,
+                    }}>
+                      {waterSaved ? 'Saved!' : waterSaving ? 'Saving…' : 'Save changes'}
+                    </Text>
+                  </Pressable>
+                )}
               </View>
             </Card>
           </Animated.View>

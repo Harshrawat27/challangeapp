@@ -284,24 +284,6 @@ export default function ProgressScreen() {
                   Every checkmark tells a story.
                 </Text>
               </View>
-              <Pressable
-                onPress={() => router.push('/settings')}
-                style={({ pressed }) => ({
-                  width: 46, height: 46, borderRadius: 46,
-                  borderWidth: StyleSheet.hairlineWidth,
-                  borderColor: T.cardBorder,
-                  backgroundColor: T.card,
-                  justifyContent: 'center', alignItems: 'center',
-                  opacity: pressed ? 0.6 : 1,
-                  marginTop: 6,
-                })}>
-                <Text style={{
-                  fontFamily: Font.icon, fontSize: 20, lineHeight: 20,
-                  color: T.text, includeFontPadding: false, textAlignVertical: 'center',
-                }}>
-                  settings
-                </Text>
-              </Pressable>
             </View>
           </Animated.View>
 

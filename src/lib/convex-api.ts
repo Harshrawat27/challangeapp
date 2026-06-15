@@ -474,3 +474,25 @@ const userPreferencesChangeChallenge = makeFunctionReference<
 export function useChangeChallenge() {
   return useMutation(userPreferencesChangeChallenge);
 }
+
+export type ChallengeHistoryEntry = {
+  _id: string;
+  _creationTime: number;
+  userId: string;
+  challenge: string;
+  challengeLength: number;
+  challengeStartDate: string;
+  endedAt: string;
+  daysLogged: number;
+  status: 'completed' | 'abandoned';
+};
+
+const userPreferencesGetHistory = makeFunctionReference<
+  'query',
+  Record<string, never>,
+  ChallengeHistoryEntry[]
+>('userPreferences:getHistory');
+
+export function useChallengeHistory(): ChallengeHistoryEntry[] | undefined {
+  return useQuery(userPreferencesGetHistory, {});
+}
