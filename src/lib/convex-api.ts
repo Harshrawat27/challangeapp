@@ -33,6 +33,8 @@ export type UserPreferencesSaveArgs = {
   seriousness: number;
   partnerInvited: boolean;
   reminderTimes: ReminderTimes;
+  weightKg?: number;
+  waterGoalMl?: number;
 };
 
 export type UserPreferencesRow = UserPreferencesSaveArgs & {
@@ -50,9 +52,20 @@ const userPreferencesGet = makeFunctionReference<'query', Record<string, never>,
   'userPreferences:get',
 );
 
+const userPreferencesPatch = makeFunctionReference<
+  'mutation',
+  { waterGoalMl?: number; weightKg?: number },
+  void
+>('userPreferences:patchPrefs');
+
 /** Save the entire onboarding payload. Idempotent — upserts the current user's row. */
 export function useSavePreferences() {
   return useMutation(userPreferencesSave);
+}
+
+/** Partial update — only send the fields you want to change. */
+export function usePatchPrefs() {
+  return useMutation(userPreferencesPatch);
 }
 
 /**
@@ -407,4 +420,57 @@ export function useNoteForDay(date: string): DayNote | null | undefined {
 
 export function useSetNote() {
   return useMutation(notesSet);
+}
+
+// ─── water ───────────────────────────────────────────────────────────────────
+
+export type WaterEntry = {
+  _id: string;
+  _creationTime: number;
+  userId: string;
+  date: string;
+  amountMl: number;
+  loggedAt: string;
+};
+
+const waterGetForDay = makeFunctionReference<
+  'query',
+  { date: string },
+  WaterEntry[]
+>('water:getWaterForDay');
+
+const waterLog = makeFunctionReference<
+  'mutation',
+  { date: string; amountMl: number },
+  number
+>('water:logWater');
+
+const waterDelete = makeFunctionReference<
+  'mutation',
+  { entryId: string },
+  number
+>('water:deleteWaterEntry');
+
+export function useWaterForDay(date: string): WaterEntry[] | undefined {
+  return useQuery(waterGetForDay, { date });
+}
+
+export function useLogWater() {
+  return useMutation(waterLog);
+}
+
+export function useDeleteWaterEntry() {
+  return useMutation(waterDelete);
+}
+
+// ─── changeChallenge ─────────────────────────────────────────────────────────
+
+const userPreferencesChangeChallenge = makeFunctionReference<
+  'mutation',
+  { challenge: string; challengeLength: number; challengeStartDate: string; customHabits: string[] },
+  null
+>('userPreferences:changeChallenge');
+
+export function useChangeChallenge() {
+  return useMutation(userPreferencesChangeChallenge);
 }

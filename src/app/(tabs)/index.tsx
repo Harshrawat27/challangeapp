@@ -21,7 +21,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { authClient } from '@/lib/auth-client';
-import { useCachedDay, useCachedPreferences, useMealsForDay, useNoteForDay, useToggleTask } from '@/lib/convex-api';
+import { useCachedDay, useCachedPreferences, useMealsForDay, useNoteForDay, useToggleTask, useWaterForDay } from '@/lib/convex-api';
 import { buildTasks, localDateString } from '@/lib/tasks';
 import { DayStrip } from '@/components/day-strip';
 import { type ChallengeTask } from '@/constants/challenges';
@@ -270,6 +270,146 @@ function TaskCard({
   );
 }
 
+// ─── Water Task Card ────────────────────────────────────────────────────────
+
+function WaterTaskCard({
+  task,
+  index,
+  waterTotal,
+  waterGoal,
+  done,
+  date,
+  ink,
+  dim,
+  cardBg,
+  cardBorder,
+  invertBg,
+  invertText,
+}: {
+  task: TaskDef;
+  index: number;
+  waterTotal: number;
+  waterGoal: number;
+  done: boolean;
+  date: string;
+  ink: string;
+  dim: string;
+  cardBg: string;
+  cardBorder: string;
+  invertBg: string;
+  invertText: string;
+}) {
+  const pct = Math.min(1, waterGoal > 0 ? waterTotal / waterGoal : 0);
+
+  // Strikethrough — same clip+slide approach as TaskCard, synced to external done state.
+  const v = useSharedValue(done ? 1 : 0);
+  const labelW = useSharedValue(0);
+  useEffect(() => {
+    v.value = withTiming(done ? 1 : 0, { duration: 400, easing: Easing.out(Easing.cubic) });
+  }, [done, v]);
+  const contentDim = useAnimatedStyle(() => ({ opacity: interpolate(v.value, [0, 1], [1, 0.45]) }));
+  const clipStyle = useAnimatedStyle(() => ({ width: labelW.value }));
+  const strikeStyle = useAnimatedStyle(() => ({
+    width: labelW.value,
+    transform: [{ translateX: interpolate(v.value, [0, 1], [-labelW.value, 0]) }],
+  }));
+
+  return (
+    <Animated.View entering={FadeInDown.delay(520 + index * 70).duration(420)}>
+      <Pressable
+        onPress={() => router.push(`/water-log?date=${date}`)}
+        style={({ pressed }) => ({
+          backgroundColor: cardBg,
+          borderRadius: Radius.lg,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: cardBorder,
+          padding: 16,
+          gap: 10,
+          marginBottom: 10,
+          transform: [{ scale: pressed ? 0.985 : 1 }],
+        })}>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          {/* Icon tile */}
+          <Animated.View style={[{
+            width: 46, height: 46, borderRadius: 12,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: cardBorder,
+            justifyContent: 'center', alignItems: 'center',
+          }, contentDim]}>
+            <Icon name={task.icon} size={22} color={done ? '#3B82F6' : ink} />
+          </Animated.View>
+
+          {/* Label + progress text */}
+          <Animated.View style={[{ flex: 1, gap: 3 }, contentDim]}>
+            {/* alignSelf:'flex-start' shrinks to text width for accurate strikethrough */}
+            <View
+              onLayout={(e) => { labelW.value = e.nativeEvent.layout.width; }}
+              style={{ alignSelf: 'flex-start' }}>
+              <Text style={{
+                fontFamily: Font.displaySemi, fontSize: 16,
+                color: ink, letterSpacing: -0.2,
+              }}>
+                {task.label}
+              </Text>
+              <Animated.View
+                pointerEvents='none'
+                style={[{
+                  position: 'absolute', top: 0, bottom: 0, left: 0,
+                  justifyContent: 'center', overflow: 'hidden',
+                }, clipStyle]}>
+                <Animated.View style={[{ height: 1, backgroundColor: ink }, strikeStyle]} />
+              </Animated.View>
+            </View>
+            <Text style={{
+              fontFamily: Font.bodyReg, fontSize: 12.5,
+              color: dim, letterSpacing: 0.1,
+            }}>
+              {waterTotal > 0
+                ? `${mlLabel(waterTotal)} of ${mlLabel(waterGoal)}`
+                : `Goal: ${mlLabel(waterGoal)} · Tap to log`}
+            </Text>
+          </Animated.View>
+
+          {/* Check indicator */}
+          <View style={{ width: 28, height: 28, justifyContent: 'center', alignItems: 'center' }}>
+            <Animated.View style={[{
+              position: 'absolute', width: 24, height: 24, borderRadius: 24,
+              borderWidth: 1.5, borderColor: cardBorder,
+            }, useAnimatedStyle(() => ({ opacity: interpolate(v.value, [0, 1], [1, 0]) }))]}>
+            </Animated.View>
+            <Animated.View style={[{
+              position: 'absolute', width: 24, height: 24, borderRadius: 24,
+              backgroundColor: invertBg,
+              justifyContent: 'center', alignItems: 'center',
+            }, useAnimatedStyle(() => ({
+              opacity: v.value,
+              transform: [{ scale: interpolate(v.value, [0, 1], [0.4, 1]) }],
+            }))]}>
+              <Icon name="check" size={16} color={invertText} />
+            </Animated.View>
+          </View>
+        </View>
+
+        {/* Progress bar */}
+        <View style={{ height: 4, borderRadius: 4, backgroundColor: cardBorder, overflow: 'hidden' }}>
+          <View style={{
+            width: `${Math.round(pct * 100)}%`,
+            height: '100%',
+            backgroundColor: done ? '#3B82F6' : ink,
+            borderRadius: 4,
+          }} />
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function mlLabel(ml: number): string {
+  if (ml >= 1000) return `${(ml / 1000).toFixed(1).replace('.0', '')}L`;
+  return `${ml}ml`;
+}
+
 // ─── Screen ─────────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -307,6 +447,12 @@ export default function Home() {
   const todayDateStr = useMemo(() => localDateString(now), [now]);
   const todayLog = useCachedDay(todayDateStr);
   const todayMeals = useMealsForDay(todayDateStr);
+  const waterLogs = useWaterForDay(todayDateStr);
+  const waterGoal = prefs?.waterGoalMl ?? 2500;
+  const waterTotal = useMemo(
+    () => (waterLogs ?? []).reduce((s, e) => s + e.amountMl, 0),
+    [waterLogs],
+  );
   const todayNote = useNoteForDay(todayDateStr);
   const toggleTaskMutation = useToggleTask();
 
@@ -374,10 +520,22 @@ export default function Home() {
   const CARD_INNER = containerW - HPAD * 2 - 32; // minus card padding *2
 
   const remaining = totalDays - currentDay;
-  const doneCount = done.size;
+  // Water done state is computed from water logs (not from daily_logs.completions)
+  // so it's accurate even before any other task has been toggled today.
+  const hasWaterTask = useMemo(() => TASKS.some(t => t.id === 'water'), [TASKS]);
+  const waterDone = hasWaterTask && waterTotal >= waterGoal;
+  const doneCount = useMemo(() => {
+    let count = done.size;
+    if (hasWaterTask) {
+      // Replace whatever daily_logs says about water with the live total.
+      if (waterDone && !done.has('water')) count++;
+      if (!waterDone && done.has('water')) count--;
+    }
+    return count;
+  }, [done, hasWaterTask, waterDone]);
   const pct = useMemo(
     () => {
-      const taskTotal = TASKS.length || 1; // avoid /0 while prefs loading
+      const taskTotal = TASKS.length || 1;
       return Math.round(((currentDay - 1 + doneCount / taskTotal) / totalDays) * 100);
     },
     [doneCount, currentDay, totalDays, TASKS.length],
@@ -644,21 +802,42 @@ export default function Home() {
               </View>
             </View>
 
-            {TASKS.map((t, i) => (
-              <TaskCard
-                key={t.id}
-                task={t}
-                index={i}
-                done={done.has(t.id)}
-                onToggle={() => toggle(t.id)}
-                ink={T.text}
-                dim={T.textDim}
-                cardBg={T.card}
-                cardBorder={T.cardBorder}
-                invertBg={T.invertBg}
-                invertText={T.invertText}
-              />
-            ))}
+            {TASKS.map((t, i) => {
+              if (t.id === 'water') {
+                return (
+                  <WaterTaskCard
+                    key={t.id}
+                    task={t}
+                    index={i}
+                    waterTotal={waterTotal}
+                    waterGoal={waterGoal}
+                    done={waterDone}
+                    date={todayDateStr}
+                    ink={T.text}
+                    dim={T.textDim}
+                    cardBg={T.card}
+                    cardBorder={T.cardBorder}
+                    invertBg={T.invertBg}
+                    invertText={T.invertText}
+                  />
+                );
+              }
+              return (
+                <TaskCard
+                  key={t.id}
+                  task={t}
+                  index={i}
+                  done={done.has(t.id)}
+                  onToggle={() => toggle(t.id)}
+                  ink={T.text}
+                  dim={T.textDim}
+                  cardBg={T.card}
+                  cardBorder={T.cardBorder}
+                  invertBg={T.invertBg}
+                  invertText={T.invertText}
+                />
+              );
+            })}
           </Animated.View>
 
           {/* ═══ Today's Nutrition ══════════════════════════════════ */}

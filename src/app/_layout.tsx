@@ -92,6 +92,9 @@ function RootLayoutNav() {
         <Stack.Screen name='day/[date]' />
         <Stack.Screen name='friend/[userId]' />
         <Stack.Screen name='note/[date]' options={{ presentation: 'fullScreenModal' }} />
+        <Stack.Screen name='water-log' options={{ presentation: 'formSheet' }} />
+        <Stack.Screen name='settings' />
+        <Stack.Screen name='change-challenge' />
         <Stack.Screen name='camera' options={{ presentation: 'fullScreenModal' }} />
         <Stack.Screen name='scan' options={{ presentation: 'fullScreenModal' }} />
         <Stack.Screen name='photo-viewer' options={{ presentation: 'fullScreenModal' }} />

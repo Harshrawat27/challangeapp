@@ -254,33 +254,55 @@ export default function ProgressScreen() {
 
           {/* Header */}
           <Animated.View entering={FadeIn.duration(400)} style={{ marginTop: 12 }}>
-            <Text style={{
-              fontFamily: Font.bodyMed,
-              fontSize: 11,
-              letterSpacing: 3,
-              color: T.textDim,
-            }}>
-              75 / HARD
-            </Text>
-            <Text style={{
-              fontFamily: Font.displayBlack,
-              fontSize: 38,
-              color: T.text,
-              letterSpacing: -1.4,
-              lineHeight: 42,
-              marginTop: 6,
-            }}>
-              Progress.
-            </Text>
-            <Text style={{
-              fontFamily: Font.bodyReg,
-              fontSize: 14,
-              color: T.textDim,
-              marginTop: 6,
-              letterSpacing: -0.05,
-            }}>
-              Every checkmark tells a story.
-            </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{
+                  fontFamily: Font.bodyMed,
+                  fontSize: 11,
+                  letterSpacing: 3,
+                  color: T.textDim,
+                }}>
+                  75 / HARD
+                </Text>
+                <Text style={{
+                  fontFamily: Font.displayBlack,
+                  fontSize: 38,
+                  color: T.text,
+                  letterSpacing: -1.4,
+                  lineHeight: 42,
+                  marginTop: 6,
+                }}>
+                  Progress.
+                </Text>
+                <Text style={{
+                  fontFamily: Font.bodyReg,
+                  fontSize: 14,
+                  color: T.textDim,
+                  marginTop: 6,
+                  letterSpacing: -0.05,
+                }}>
+                  Every checkmark tells a story.
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => router.push('/settings')}
+                style={({ pressed }) => ({
+                  width: 46, height: 46, borderRadius: 46,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderColor: T.cardBorder,
+                  backgroundColor: T.card,
+                  justifyContent: 'center', alignItems: 'center',
+                  opacity: pressed ? 0.6 : 1,
+                  marginTop: 6,
+                })}>
+                <Text style={{
+                  fontFamily: Font.icon, fontSize: 20, lineHeight: 20,
+                  color: T.text, includeFontPadding: false, textAlignVertical: 'center',
+                }}>
+                  settings
+                </Text>
+              </Pressable>
+            </View>
           </Animated.View>
 
           {/* ─── Stat tiles ─────────────────────────────────────── */}

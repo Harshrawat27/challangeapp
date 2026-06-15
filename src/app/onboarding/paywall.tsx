@@ -154,6 +154,8 @@ export default function PaywallScreen() {
         seriousness: onboardingState.seriousness,
         partnerInvited: onboardingState.partnerInvited,
         reminderTimes: onboardingState.reminderTimes,
+        weightKg: onboardingState.weightKg ?? undefined,
+        waterGoalMl: onboardingState.waterGoalMl,
       });
       router.replace('/');
     } catch (e) {

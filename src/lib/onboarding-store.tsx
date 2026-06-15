@@ -12,6 +12,8 @@ export type OnboardingState = {
   seriousness: number;         // 1-10
   partnerInvited: boolean;
   reminderTimes: { morning: string; afternoon: string; evening: string };
+  weightKg: number | null;
+  waterGoalMl: number;         // ml, default 2500
   username: string;            // claimed at S14
 };
 
@@ -25,6 +27,8 @@ const DEFAULT: OnboardingState = {
   seriousness: 7,
   partnerInvited: false,
   reminderTimes: { morning: '07:00', afternoon: '13:00', evening: '21:00' },
+  weightKg: null,
+  waterGoalMl: 2500,
   username: '',
 };
 

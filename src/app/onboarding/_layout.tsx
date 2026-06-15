@@ -20,6 +20,7 @@ export default function OnboardingLayout() {
       <Stack.Screen name='proof' />
       <Stack.Screen name='partner' />
       <Stack.Screen name='notifications' />
+      <Stack.Screen name='water' />
       <Stack.Screen name='username' />
       <Stack.Screen name='account' />
       <Stack.Screen name='paywall' />
