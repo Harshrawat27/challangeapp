@@ -532,20 +532,20 @@ export default function ProfileScreen() {
               <Row
                 label='Privacy Policy'
                 chevron
-                onPress={() => openUrl('https://habittracker.app/privacy')}
+                onPress={() => openUrl('https://hardpact.com/privacy')}
                 T={T}
               />
               <Row
                 label='Terms of Service'
                 chevron
-                onPress={() => openUrl('https://habittracker.app/terms')}
+                onPress={() => openUrl('https://hardpact.com/terms')}
                 T={T}
               />
               <Row
                 label='Support'
-                value='hello@habittracker.app'
+                value='hello@hardpact.com'
                 isLast
-                onPress={() => openUrl('mailto:hello@habittracker.app')}
+                onPress={() => openUrl('mailto:hello@hardpact.com')}
                 T={T}
               />
             </Card>

@@ -7,8 +7,8 @@ export const authClient = createAuthClient({
   baseURL: process.env.EXPO_PUBLIC_AUTH_URL!,
   plugins: [
     expoClient({
-      scheme: 'habittracker',
-      storagePrefix: 'habittracker',
+      scheme: 'hardpact',
+      storagePrefix: 'hardpact',
       storage: SecureStore,
     }),
     convexClient(),

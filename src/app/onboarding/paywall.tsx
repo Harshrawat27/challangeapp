@@ -281,7 +281,7 @@ export default function PaywallScreen() {
             gap: 16,
             paddingVertical: 4,
           }}>
-            <Pressable onPress={() => Linking.openURL('https://habittracker.app/terms')}>
+            <Pressable onPress={() => Linking.openURL('https://hardpact.com/terms')}>
               <Text style={{
                 fontFamily: Font.bodyReg, fontSize: 11, color: T.textSubtle,
                 textDecorationLine: 'underline',
@@ -289,7 +289,7 @@ export default function PaywallScreen() {
                 Terms
               </Text>
             </Pressable>
-            <Pressable onPress={() => Linking.openURL('https://habittracker.app/privacy')}>
+            <Pressable onPress={() => Linking.openURL('https://hardpact.com/privacy')}>
               <Text style={{
                 fontFamily: Font.bodyReg, fontSize: 11, color: T.textSubtle,
                 textDecorationLine: 'underline',

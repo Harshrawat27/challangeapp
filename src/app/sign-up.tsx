@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 import { authClient } from '@/lib/auth-client';
 import { Colors, Font, Radius, type Theme } from '@/constants/theme';
@@ -49,16 +50,36 @@ export default function SignUpScreen() {
     router.replace('/');
   };
 
-  const onSocial = async (provider: 'google' | 'apple') => {
+  const onGoogle = async () => {
     setError(null);
-    setSocialLoading(provider);
+    setSocialLoading('google');
     try {
-      await authClient.signIn.social({
-        provider,
-        callbackURL: '/',
-      });
+      await authClient.signIn.social({ provider: 'google', callbackURL: '/' });
     } catch {
       setError('Could not sign in. Please try again.');
+    } finally {
+      setSocialLoading(null);
+    }
+  };
+
+  const onApple = async () => {
+    setError(null);
+    setSocialLoading('apple');
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      if (!credential.identityToken) throw new Error('No identity token');
+      await authClient.signIn.social({
+        provider: 'apple',
+        idToken: { token: credential.identityToken },
+      } as never);
+    } catch (e: unknown) {
+      if ((e as { code?: string })?.code === 'ERR_REQUEST_CANCELED') return;
+      setError('Apple sign-in failed. Please try again.');
     } finally {
       setSocialLoading(null);
     }
@@ -114,17 +135,29 @@ export default function SignUpScreen() {
                   provider='google'
                   loading={socialLoading === 'google'}
                   disabled={busy}
-                  onPress={() => onSocial('google')}
+                  onPress={onGoogle}
                   T={T}
                 />
-                <SocialButton
-                  provider='apple'
-                  loading={socialLoading === 'apple'}
-                  disabled={busy}
-                  onPress={() => onSocial('apple')}
-                  T={T}
-                  isDark={isDark}
-                />
+                {Platform.OS === 'ios' ? (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                    buttonStyle={isDark
+                      ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                      : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                    cornerRadius={100}
+                    style={{ height: 52 }}
+                    onPress={onApple}
+                  />
+                ) : (
+                  <SocialButton
+                    provider='apple'
+                    loading={socialLoading === 'apple'}
+                    disabled={busy}
+                    onPress={onApple}
+                    T={T}
+                    isDark={isDark}
+                  />
+                )}
               </Animated.View>
 
               {/* ── Divider ────────────────────────────────────────── */}

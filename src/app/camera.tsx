@@ -144,7 +144,7 @@ function HabitCard({
           {dateStr}
         </Text>
         <Text style={{ fontFamily: Font.bodySemi, fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>
-          habittracker
+          hardpact
         </Text>
       </View>
     </View>
