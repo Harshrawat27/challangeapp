@@ -26,6 +26,8 @@ import { authClient } from '@/lib/auth-client';
 import { ConvexAuthSetup } from '@/lib/auth/ConvexAuthSetup';
 import { OnboardingProvider } from '@/lib/onboarding-store';
 import { useCachedPreferences } from '@/lib/convex-api';
+import { SubscriptionProvider } from '@/lib/subscription-context';
+import { configurePurchases, loginPurchases, logoutPurchases } from '@/lib/purchases';
 import { Colors } from '@/constants/theme';
 
 function isUnauthedRoute(pathname: string): boolean {
@@ -52,6 +54,16 @@ function RootLayoutNav() {
   const hasResolved = useRef(false);
   if (!isPending) hasResolved.current = true;
 
+  // Keep RevenueCat user in sync with auth state.
+  useEffect(() => {
+    if (isPending) return;
+    if (session?.user?.id) {
+      loginPurchases(session.user.id);
+    } else {
+      logoutPurchases();
+    }
+  }, [session?.user?.id, isPending]);
+
   useEffect(() => {
     if (isPending) return;
 
@@ -76,10 +88,12 @@ function RootLayoutNav() {
       return;
     }
 
-    // Signed in with prefs: redirect away from /sign-in or /sign-up only.
-    // Stay on /onboarding/* so mid-onboarding users can finish.
-    if (onUnauthed && !pathname.startsWith('/onboarding')) {
+    // Signed in with prefs on an onboarding or auth screen → go home.
+    // Covers returning users who land on /onboarding/welcome after sign-in.
+    if (prefs !== null && onUnauthed) {
       router.replace('/');
+      hasRouted.current = true;
+      return;
     }
     hasRouted.current = true;
   }, [session, isPending, pathname, prefs]);
@@ -108,6 +122,7 @@ function RootLayoutNav() {
         <Stack.Screen name='note/[date]' options={{ presentation: 'fullScreenModal' }} />
         <Stack.Screen name='water-log' options={{ presentation: 'formSheet' }} />
         <Stack.Screen name='settings' />
+        <Stack.Screen name='paywall' options={{ presentation: 'fullScreenModal' }} />
         <Stack.Screen name='change-challenge' />
         <Stack.Screen name='challenge-history' />
         <Stack.Screen name='camera' options={{ presentation: 'fullScreenModal' }} />
@@ -126,6 +141,7 @@ export default function RootLayout() {
     if (stored === 'light' || stored === 'dark') {
       Appearance.setColorScheme(stored);
     }
+    configurePurchases();
   }, []);
 
   const [loaded] = useFonts({
@@ -146,11 +162,13 @@ export default function RootLayout() {
 
   return (
     <ConvexAuthSetup>
-      {/* OnboardingProvider lives ABOVE RootLayoutNav so it survives any
-          mount/unmount cycle triggered by auth state changes. */}
-      <OnboardingProvider>
-        <RootLayoutNav />
-      </OnboardingProvider>
+      {/* SubscriptionProvider needs Convex context (for syncSubscriptionStatus)
+          so it lives inside ConvexAuthSetup. */}
+      <SubscriptionProvider>
+        <OnboardingProvider>
+          <RootLayoutNav />
+        </OnboardingProvider>
+      </SubscriptionProvider>
     </ConvexAuthSetup>
   );
 }

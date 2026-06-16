@@ -18,7 +18,8 @@ import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 
 import { authClient } from '@/lib/auth-client';
-import { useCachedPreferences, useChallengeHistory, usePatchPrefs } from '@/lib/convex-api';
+import { clearPrefsCache, useCachedPreferences, useChallengeHistory, useMyUsername, usePatchPrefs } from '@/lib/convex-api';
+import { useSubscription } from '@/lib/subscription-context';
 import { getChallenge } from '@/constants/challenges';
 import { localDateString } from '@/lib/tasks';
 import { Colors, Font, MaxContentWidth, Radius, type Theme } from '@/constants/theme';
@@ -156,6 +157,10 @@ export default function ProfileScreen() {
   const { data: session, isPending } = authClient.useSession();
   const user = session?.user;
 
+  const { isSubscribed } = useSubscription();
+  // Redirects unsubscribed users to the paywall instead of running the action.
+  const gated = (fn: () => void) => () => isSubscribed ? fn() : router.push('/paywall');
+
   const [signingOut, setSigningOut] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -175,8 +180,6 @@ export default function ProfileScreen() {
     }
   }, []);
 
-  const initial = useMemo(() => getInitial(user?.name, user?.email), [user]);
-
   const handleSignOut = useCallback(() => {
     Alert.alert(
       'Sign out?',
@@ -189,8 +192,8 @@ export default function ProfileScreen() {
           onPress: async () => {
             setSigningOut(true);
             try {
+              clearPrefsCache();
               await authClient.signOut();
-              // Root _layout watches session and will redirect to /sign-up.
             } finally {
               setSigningOut(false);
             }
@@ -237,6 +240,11 @@ export default function ProfileScreen() {
   const prefs = useCachedPreferences();
   const patchPrefs = usePatchPrefs();
   const history = useChallengeHistory();
+  const username = useMyUsername();
+  const initial = useMemo(
+    () => getInitial(prefs?.name, user?.email),
+    [prefs?.name, user?.email],
+  );
 
   const challengeStatus = useMemo(() => {
     if (!prefs) return null;
@@ -318,7 +326,7 @@ export default function ProfileScreen() {
                   backgroundColor: T.invertBg,
                   justifyContent: 'center', alignItems: 'center',
                 }}>
-                  {isPending ? (
+                  {(isPending || prefs === undefined) ? (
                     <ActivityIndicator size='small' color={T.invertText} />
                   ) : (
                     <Text style={{
@@ -340,7 +348,7 @@ export default function ProfileScreen() {
                       color: T.text,
                       letterSpacing: -0.3,
                     }}>
-                    {user?.name || (isPending ? 'Loading…' : '—')}
+                    {prefs?.name || (prefs === undefined ? 'Loading…' : '—')}
                   </Text>
                   <Text
                     numberOfLines={1}
@@ -351,7 +359,7 @@ export default function ProfileScreen() {
                       marginTop: 2,
                       letterSpacing: -0.05,
                     }}>
-                    {user?.email || ' '}
+                    {username?.username ? `@${username.username}` : ' '}
                   </Text>
                 </View>
               </View>
@@ -409,7 +417,7 @@ export default function ProfileScreen() {
 
           {/* ═══ Challenge ═══════════════════════════════════════════ */}
           <Animated.View entering={FadeInDown.delay(240).duration(420)}>
-            <SectionLabel T={T}>Challenge</SectionLabel>
+            <SectionLabel T={T}>{`Challenge${!isSubscribed ? '  🔒' : ''}`}</SectionLabel>
             <Card T={T}>
               {challengeStatus && (
                 <View style={{
@@ -437,14 +445,14 @@ export default function ProfileScreen() {
               <Row
                 label='Change challenge'
                 chevron
-                onPress={() => router.push('/change-challenge')}
+                onPress={gated(() => router.push('/change-challenge'))}
                 T={T}
               />
               <Row
                 label='Challenge history'
                 value={history?.length ? `${history.length} run${history.length === 1 ? '' : 's'}` : undefined}
                 chevron
-                onPress={() => router.push('/challenge-history')}
+                onPress={gated(() => router.push('/challenge-history'))}
                 isLast
                 T={T}
               />
@@ -453,7 +461,7 @@ export default function ProfileScreen() {
 
           {/* ═══ Hydration ═══════════════════════════════════════════ */}
           <Animated.View entering={FadeInDown.delay(260).duration(420)}>
-            <SectionLabel T={T}>Hydration</SectionLabel>
+            <SectionLabel T={T}>{`Hydration${!isSubscribed ? '  🔒' : ''}`}</SectionLabel>
             <Card T={T}>
               <View style={{ padding: 16, gap: 12 }}>
                 <Text style={{
@@ -472,7 +480,7 @@ export default function ProfileScreen() {
                   overflow: 'hidden',
                 }}>
                   <Pressable
-                    onPress={() => adjustWater(-WATER_STEP)}
+                    onPress={gated(() => adjustWater(-WATER_STEP))}
                     style={({ pressed }) => ({
                       width: 52, height: 52,
                       justifyContent: 'center', alignItems: 'center',
@@ -492,7 +500,7 @@ export default function ProfileScreen() {
                     </Text>
                   </View>
                   <Pressable
-                    onPress={() => adjustWater(WATER_STEP)}
+                    onPress={gated(() => adjustWater(WATER_STEP))}
                     style={({ pressed }) => ({
                       width: 52, height: 52,
                       justifyContent: 'center', alignItems: 'center',
@@ -503,7 +511,7 @@ export default function ProfileScreen() {
                 </View>
                 {(waterChanged || waterSaved) && (
                   <Pressable
-                    onPress={handleSaveWater}
+                    onPress={gated(handleSaveWater)}
                     disabled={waterSaving || waterSaved}
                     style={({ pressed }) => ({
                       backgroundColor: waterSaved ? '#22C55E' : T.invertBg,

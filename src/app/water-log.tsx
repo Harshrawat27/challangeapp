@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useCachedPreferences, useWaterForDay, useLogWater, useDeleteWaterEntry } from '@/lib/convex-api';
+import { useCachedPreferences, useWaterForDay, useLogWater, useDeleteWaterEntry, waterGetForDay, type WaterEntry } from '@/lib/convex-api';
 import { Colors, Font, Radius } from '@/constants/theme';
 
 const PRESETS = [200, 300, 500, 750];
@@ -34,7 +34,19 @@ export default function WaterLogScreen() {
   const prefs = useCachedPreferences();
   const waterGoal = prefs?.waterGoalMl ?? DEFAULT_GOAL;
   const entries = useWaterForDay(date as string);
-  const logWater = useLogWater();
+  const logWater = useLogWater().withOptimisticUpdate((localStore, args) => {
+    const existing = localStore.getQuery(waterGetForDay, { date: args.date });
+    if (existing === undefined) return;
+    const optimistic: WaterEntry = {
+      _id: `optimistic_${Date.now()}`,
+      _creationTime: Date.now(),
+      userId: '',
+      date: args.date,
+      amountMl: args.amountMl,
+      loggedAt: new Date().toISOString(),
+    };
+    localStore.setQuery(waterGetForDay, { date: args.date }, [...existing, optimistic]);
+  });
   const deleteEntry = useDeleteWaterEntry();
 
   const sortedEntries = [...(entries ?? [])].reverse(); // most-recent first
@@ -43,12 +55,17 @@ export default function WaterLogScreen() {
 
   const [amount, setAmount] = useState(300);
   const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   const handleAdd = async () => {
     if (adding) return;
     setAdding(true);
+    setAddError(null);
     try {
       await logWater({ date: date as string, amountMl: amount });
+      router.back();
+    } catch {
+      setAddError('Failed to log water. Please try again.');
     } finally {
       setAdding(false);
     }
@@ -232,6 +249,16 @@ export default function WaterLogScreen() {
             <Text style={{ fontFamily: Font.displayBold, fontSize: 22, color: T.text }}>+</Text>
           </Pressable>
         </View>
+
+        {/* ── Add error ────────────────────────────────────────────────── */}
+        {addError && (
+          <Text style={{
+            fontFamily: Font.bodyMed, fontSize: 13,
+            color: '#DC2626', textAlign: 'center', marginBottom: 10,
+          }}>
+            {addError}
+          </Text>
+        )}
 
         {/* ── Add button ───────────────────────────────────────────────── */}
         <Pressable

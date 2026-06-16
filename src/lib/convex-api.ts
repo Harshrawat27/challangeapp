@@ -42,6 +42,7 @@ export type UserPreferencesRow = UserPreferencesSaveArgs & {
   _creationTime: number;
   userId: string;
   onboardingCompletedAt: string;
+  subscriptionStatus?: 'weekly' | 'monthly' | 'yearly' | 'expired';
 };
 
 const userPreferencesSave = makeFunctionReference<'mutation', UserPreferencesSaveArgs, string>(
@@ -58,6 +59,12 @@ const userPreferencesPatch = makeFunctionReference<
   void
 >('userPreferences:patchPrefs');
 
+const userPreferencesSyncSubscription = makeFunctionReference<
+  'mutation',
+  { status: 'weekly' | 'monthly' | 'yearly' | 'expired' },
+  void
+>('userPreferences:syncSubscriptionStatus');
+
 /** Save the entire onboarding payload. Idempotent — upserts the current user's row. */
 export function useSavePreferences() {
   return useMutation(userPreferencesSave);
@@ -66,6 +73,11 @@ export function useSavePreferences() {
 /** Partial update — only send the fields you want to change. */
 export function usePatchPrefs() {
   return useMutation(userPreferencesPatch);
+}
+
+/** Fast-path: sync subscription status to Convex right after a RC purchase, before the webhook arrives. */
+export function useSyncSubscriptionStatus() {
+  return useMutation(userPreferencesSyncSubscription);
 }
 
 /**
@@ -103,18 +115,29 @@ export function useCachedPreferences(): UserPreferencesRow | null | undefined {
   const live = useMyPreferences();
 
   useEffect(() => {
-    if (live === undefined) return; // still loading — keep showing cache
+    if (live === undefined || live === null) return;
+    // Only update cache from confirmed non-null Convex data.
+    // We deliberately never clear the cache here — a null from Convex can be
+    // a transient auth-sync artefact (Convex token not yet applied), not
+    // evidence that the row is gone. The cache is cleared explicitly on
+    // sign-out via clearPrefsCache().
     setCached(live);
-    if (live !== null) {
-      try { SecureStore.setItem(PREFS_CACHE_KEY, JSON.stringify(live)); } catch {}
-    } else {
-      SecureStore.deleteItemAsync(PREFS_CACHE_KEY).catch(() => {});
-    }
+    try { SecureStore.setItem(PREFS_CACHE_KEY, JSON.stringify(live)); } catch {}
   }, [live]);
 
-  // Once Convex responds, use live data (authoritative).
-  // While loading, fall back to SecureStore cache.
-  return live !== undefined ? live : cached;
+  // Return priority:
+  //   1. Real Convex data when it's confirmed non-null
+  //   2. SecureStore cache (covers the Convex auth-sync window)
+  //   3. null  — only when both live AND cache are null/undefined (truly new user)
+  //   4. undefined — still loading
+  if (live !== undefined && live !== null) return live;
+  if (cached !== undefined) return cached;
+  return live; // null (confirmed new user, no cache) or undefined (loading)
+}
+
+/** Call this on sign-out so the next user on this device starts cache-clean. */
+export function clearPrefsCache() {
+  SecureStore.deleteItemAsync(PREFS_CACHE_KEY).catch(() => {});
 }
 
 // ─── dailyLogs ─────────────────────────────────────────────────────────────
@@ -433,7 +456,7 @@ export type WaterEntry = {
   loggedAt: string;
 };
 
-const waterGetForDay = makeFunctionReference<
+export const waterGetForDay = makeFunctionReference<
   'query',
   { date: string },
   WaterEntry[]
@@ -453,6 +476,29 @@ const waterDelete = makeFunctionReference<
 
 export function useWaterForDay(date: string): WaterEntry[] | undefined {
   return useQuery(waterGetForDay, { date });
+}
+
+export function useCachedWaterForDay(date: string): WaterEntry[] | undefined {
+  const cacheKey = `water_log_v1_${date}`;
+
+  const [cached, setCached] = useState<WaterEntry[] | undefined>(() => {
+    try {
+      const raw = SecureStore.getItem(cacheKey);
+      return raw ? (JSON.parse(raw) as WaterEntry[]) : undefined;
+    } catch {
+      return undefined;
+    }
+  });
+
+  const live = useWaterForDay(date);
+
+  useEffect(() => {
+    if (live === undefined) return;
+    setCached(live);
+    try { SecureStore.setItem(cacheKey, JSON.stringify(live)); } catch {}
+  }, [live, cacheKey]);
+
+  return live !== undefined ? live : cached;
 }
 
 export function useLogWater() {

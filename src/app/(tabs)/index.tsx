@@ -21,7 +21,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { authClient } from '@/lib/auth-client';
-import { useCachedDay, useCachedPreferences, useMealsForDay, useNoteForDay, useToggleTask, useWaterForDay } from '@/lib/convex-api';
+import { useCachedDay, useCachedPreferences, useCachedWaterForDay, useMealsForDay, useNoteForDay, useToggleTask } from '@/lib/convex-api';
 import { buildTasks, localDateString } from '@/lib/tasks';
 import { DayStrip } from '@/components/day-strip';
 import { type ChallengeTask } from '@/constants/challenges';
@@ -447,7 +447,7 @@ export default function Home() {
   const todayDateStr = useMemo(() => localDateString(now), [now]);
   const todayLog = useCachedDay(todayDateStr);
   const todayMeals = useMealsForDay(todayDateStr);
-  const waterLogs = useWaterForDay(todayDateStr);
+  const waterLogs = useCachedWaterForDay(todayDateStr);
   const waterGoal = prefs?.waterGoalMl ?? 2500;
   const waterTotal = useMemo(
     () => (waterLogs ?? []).reduce((s, e) => s + e.amountMl, 0),

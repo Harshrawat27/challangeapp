@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { Alert, Pressable, Text, View, useColorScheme } from 'react-native';
 import Animated, {
   interpolate,
@@ -12,6 +12,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors, Font, type Theme } from '@/constants/theme';
+import { useSubscription } from '@/lib/subscription-context';
 
 // ─── Actions ────────────────────────────────────────────────────────────────
 // index 0 = closest to FAB, index 1 = furthest
@@ -147,6 +148,14 @@ export default function TabsLayout() {
   const [isOpen, setIsOpen] = useState(false);
   const progress = useSharedValue(0);
 
+  const { isSubscribed } = useSubscription();
+  const pathname = usePathname();
+  // Profile tab is always accessible so user can logout / delete account.
+  const isProfileTab = pathname === '/profile';
+  const showGate = !isSubscribed && !isProfileTab;
+  // Tab bar height: standard 49pt + bottom safe area.
+  const tabBarHeight = 49 + insets.bottom;
+
   // 49pt = standard iOS tab bar height
   const fabBottom = insets.bottom + 49 + 16;
 
@@ -205,34 +214,48 @@ export default function TabsLayout() {
         <Pressable style={{ flex: 1 }} onPress={close} />
       </Animated.View>
 
-      {/* Speed dial — items stack above FAB, furthest-from-FAB rendered first (top) */}
-      <View
-        pointerEvents='box-none'
-        style={{ position: 'absolute', bottom: fabBottom, right: 14, alignItems: 'flex-end' }}>
-        {[...ACTIONS].reverse().map((action, reverseIdx) => {
-          const originalIdx = ACTIONS.length - 1 - reverseIdx;
-          return (
-            <SpeedDialItem
-              key={action.key}
-              label={action.label}
-              icon={action.icon}
-              index={originalIdx}
-              progress={progress}
-              onPress={() => {
-                close();
-                if (action.key === 'picture') {
-                  router.push('/camera');
-                } else if (action.key === 'scan') {
-                  router.push('/scan');
-                }
-              }}
-              T={T}
-              isDark={isDark}
-            />
-          );
-        })}
-        <SpeedDialFAB progress={progress} onPress={toggle} T={T} isDark={isDark} />
-      </View>
+      {/* Speed dial — hidden when paywall gate is active */}
+      {!showGate && (
+        <View
+          pointerEvents='box-none'
+          style={{ position: 'absolute', bottom: fabBottom, right: 14, alignItems: 'flex-end' }}>
+          {[...ACTIONS].reverse().map((action, reverseIdx) => {
+            const originalIdx = ACTIONS.length - 1 - reverseIdx;
+            return (
+              <SpeedDialItem
+                key={action.key}
+                label={action.label}
+                icon={action.icon}
+                index={originalIdx}
+                progress={progress}
+                onPress={() => {
+                  close();
+                  if (action.key === 'picture') {
+                    router.push('/camera');
+                  } else if (action.key === 'scan') {
+                    router.push('/scan');
+                  }
+                }}
+                T={T}
+                isDark={isDark}
+              />
+            );
+          })}
+          <SpeedDialFAB progress={progress} onPress={toggle} T={T} isDark={isDark} />
+        </View>
+      )}
+
+      {/* Paywall gate — covers content area but leaves tab bar accessible */}
+      {showGate && (
+        <Pressable
+          onPress={() => router.push('/paywall')}
+          style={{
+            position: 'absolute',
+            top: 0, left: 0, right: 0,
+            bottom: tabBarHeight,
+          }}
+        />
+      )}
     </View>
   );
 }

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "habittracker",
+    "name": "hardpact",
     "slug": "hardpact",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -36,8 +36,19 @@
           }
         }
       ],
-      ["expo-camera", { "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for progress photos." }],
-      ["expo-media-library", { "photosPermission": "Allow $(PRODUCT_NAME) to save your progress photos.", "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos." }],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for progress photos."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to save your progress photos.",
+          "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos."
+        }
+      ],
       "expo-secure-store",
       "expo-notifications",
       "expo-apple-authentication",

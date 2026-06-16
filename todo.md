@@ -3,3 +3,5 @@
 3. check for notification tab
 4. onboarding rectification
 5. check if water loggin is done or not!
+6. after opening app if we have to show paywall screen it must be exactly same as onboarding paywall
+   i
