@@ -25,6 +25,7 @@ export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const onSubmit = async () => {
@@ -45,6 +46,23 @@ export default function SignInScreen() {
     }
     router.replace('/');
   };
+
+  const onSocial = async (provider: 'google' | 'apple') => {
+    setError(null);
+    setSocialLoading(provider);
+    try {
+      await authClient.signIn.social({
+        provider,
+        callbackURL: '/',
+      });
+    } catch {
+      setError('Could not sign in. Please try again.');
+    } finally {
+      setSocialLoading(null);
+    }
+  };
+
+  const busy = loading || !!socialLoading;
 
   return (
     <View style={{ flex: 1, backgroundColor: T.background }}>
@@ -87,7 +105,38 @@ export default function SignInScreen() {
                 </Text>
               </Animated.View>
 
-              <Animated.View entering={FadeInDown.delay(140).duration(420)} style={{ gap: 14 }}>
+              {/* ── Social buttons ─────────────────────────────────── */}
+              <Animated.View entering={FadeInDown.delay(80).duration(420)} style={{ gap: 10, marginBottom: 20 }}>
+                <SocialButton
+                  provider='google'
+                  loading={socialLoading === 'google'}
+                  disabled={busy}
+                  onPress={() => onSocial('google')}
+                  T={T}
+                />
+                <SocialButton
+                  provider='apple'
+                  loading={socialLoading === 'apple'}
+                  disabled={busy}
+                  onPress={() => onSocial('apple')}
+                  T={T}
+                  isDark={isDark}
+                />
+              </Animated.View>
+
+              {/* ── Divider ────────────────────────────────────────── */}
+              <Animated.View entering={FadeInDown.delay(120).duration(420)} style={{
+                flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20,
+              }}>
+                <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: T.cardBorder }} />
+                <Text style={{ fontFamily: Font.bodyReg, fontSize: 12, color: T.textSubtle }}>
+                  or continue with email
+                </Text>
+                <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: T.cardBorder }} />
+              </Animated.View>
+
+              {/* ── Email / password form ──────────────────────────── */}
+              <Animated.View entering={FadeInDown.delay(160).duration(420)} style={{ gap: 14 }}>
                 <Field
                   label='Email'
                   value={email}
@@ -125,7 +174,7 @@ export default function SignInScreen() {
 
                 <Pressable
                   onPress={onSubmit}
-                  disabled={loading}
+                  disabled={busy}
                   style={({ pressed }) => ({
                     backgroundColor: T.invertBg,
                     height: 52,
@@ -133,7 +182,7 @@ export default function SignInScreen() {
                     justifyContent: 'center',
                     alignItems: 'center',
                     marginTop: 6,
-                    opacity: pressed || loading ? 0.75 : 1,
+                    opacity: pressed || busy ? 0.75 : 1,
                   })}>
                   {loading ? (
                     <ActivityIndicator color={T.invertText} />
@@ -167,6 +216,74 @@ export default function SignInScreen() {
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
+  );
+}
+
+function SocialButton({
+  provider,
+  loading,
+  disabled,
+  onPress,
+  T,
+  isDark,
+}: {
+  provider: 'google' | 'apple';
+  loading: boolean;
+  disabled: boolean;
+  onPress: () => void;
+  T: Theme;
+  isDark?: boolean;
+}) {
+  const isApple = provider === 'apple';
+
+  const bgColor = isApple
+    ? (isDark ? '#FFFFFF' : '#000000')
+    : T.card;
+
+  const textColor = isApple
+    ? (isDark ? '#000000' : '#FFFFFF')
+    : T.text;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => ({
+        height: 52,
+        borderRadius: Radius.pill,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        backgroundColor: bgColor,
+        borderWidth: isApple ? 0 : StyleSheet.hairlineWidth,
+        borderColor: T.cardBorder,
+        opacity: pressed || disabled ? 0.65 : 1,
+      })}>
+      {loading ? (
+        <ActivityIndicator color={textColor} />
+      ) : (
+        <>
+          <Text style={{
+            fontFamily: Font.icon,
+            fontSize: 20,
+            lineHeight: 22,
+            color: isApple ? textColor : '#4285F4',
+            includeFontPadding: false,
+          }}>
+            {isApple ? 'apple' : 'g_mobiledata'}
+          </Text>
+          <Text style={{
+            fontFamily: Font.displaySemi,
+            fontSize: 15,
+            color: textColor,
+            letterSpacing: -0.2,
+          }}>
+            Continue with {isApple ? 'Apple' : 'Google'}
+          </Text>
+        </>
+      )}
+    </Pressable>
   );
 }
 
