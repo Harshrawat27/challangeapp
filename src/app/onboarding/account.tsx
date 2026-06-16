@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
@@ -47,10 +47,19 @@ export default function AccountScreen() {
   const T = Colors[isDark ? 'dark' : 'light'];
 
   const { state } = useOnboarding();
+  const { data: session, isPending } = authClient.useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Google/Apple users already have a session by the time they reach this screen.
+  // Skip email signup and go straight to saving preferences in paywall.
+  useEffect(() => {
+    if (!isPending && session) {
+      router.replace('/onboarding/paywall');
+    }
+  }, [session, isPending]);
 
   const canSubmit = email.trim().length > 3 && password.length >= 8 && !loading;
 

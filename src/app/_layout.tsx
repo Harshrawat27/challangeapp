@@ -25,6 +25,7 @@ import * as SecureStore from 'expo-secure-store';
 import { authClient } from '@/lib/auth-client';
 import { ConvexAuthSetup } from '@/lib/auth/ConvexAuthSetup';
 import { OnboardingProvider } from '@/lib/onboarding-store';
+import { useCachedPreferences } from '@/lib/convex-api';
 import { Colors } from '@/constants/theme';
 
 function isUnauthedRoute(pathname: string): boolean {
@@ -40,6 +41,7 @@ function RootLayoutNav() {
   const bg = colorScheme === 'dark' ? Colors.dark.background : Colors.light.background;
 
   const { data: session, isPending } = authClient.useSession();
+  const prefs = useCachedPreferences();
   const pathname = usePathname();
   const hasRouted = useRef(false);
 
@@ -56,24 +58,36 @@ function RootLayoutNav() {
     const onUnauthed = isUnauthedRoute(pathname);
 
     if (!session) {
-      // Not signed in: bounce to onboarding unless already on an unauthed screen
-      if (!onUnauthed) {
-        router.replace('/onboarding/welcome');
-      }
+      // Not signed in → bounce to onboarding unless already on an unauthed screen
+      if (!onUnauthed) router.replace('/onboarding/welcome');
       hasRouted.current = true;
       return;
     }
 
-    // Signed in: if currently on /sign-in or /sign-up, go home.
-    // Stay on /onboarding/* so post-signup users can finish the paywall step.
+    // Signed in — wait for prefs to resolve before making routing decisions.
+    // undefined = still loading; null = no onboarding row; object = complete.
+    if (prefs === undefined) return;
+
+    // Signed in but onboarding never completed (Google/Apple new users,
+    // or users who signed up then closed before finishing).
+    if (prefs === null && !pathname.startsWith('/onboarding')) {
+      router.replace('/onboarding/welcome');
+      hasRouted.current = true;
+      return;
+    }
+
+    // Signed in with prefs: redirect away from /sign-in or /sign-up only.
+    // Stay on /onboarding/* so mid-onboarding users can finish.
     if (onUnauthed && !pathname.startsWith('/onboarding')) {
       router.replace('/');
     }
     hasRouted.current = true;
-  }, [session, isPending, pathname]);
+  }, [session, isPending, pathname, prefs]);
 
-  // Initial-cold-start loader only.
-  if (!hasResolved.current) {
+  // Block render until session resolves AND (if signed in) prefs resolves too.
+  // The prefs check prevents a flash of the home screen before we can redirect
+  // a new Google/Apple user to onboarding.
+  if (!hasResolved.current || (session && prefs === undefined)) {
     return (
       <View style={{ flex: 1, backgroundColor: bg, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator color={colorScheme === 'dark' ? '#FAFAFA' : '#0A0A0A'} />
