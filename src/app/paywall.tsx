@@ -12,10 +12,11 @@ import {
 } from 'react-native';
 import Purchases, { type PurchasesPackage } from 'react-native-purchases';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors, Font, Radius, type Theme } from '@/constants/theme';
-import { RC_ENTITLEMENT } from '@/lib/purchases';
+import { useSyncSubscriptionStatus } from '@/lib/convex-api';
+import { RC_ENTITLEMENT, getSubscriptionStatus } from '@/lib/purchases';
 
 type Plan = {
   pkg: PurchasesPackage;
@@ -189,16 +190,17 @@ export default function PaywallScreen() {
   }, []);
 
   const selectedPlan = plans[selectedIdx];
+  const syncStatus = useSyncSubscriptionStatus();
 
   const handlePurchase = async () => {
     if (!selectedPlan || purchasing) return;
     setError(null);
     setPurchasing(true);
     try {
-      const { customerInfo } = await Purchases.purchasePackage(
-        selectedPlan.pkg
-      );
+      const { customerInfo } = await Purchases.purchasePackage(selectedPlan.pkg);
       if (customerInfo.entitlements.active[RC_ENTITLEMENT]) {
+        const status = getSubscriptionStatus(customerInfo);
+        if (status) syncStatus({ status, source: 'direct' }).catch(() => {});
         router.back();
       }
     } catch (e: unknown) {
@@ -215,8 +217,12 @@ export default function PaywallScreen() {
     setPurchasing(true);
     setError(null);
     try {
+      const before = await Purchases.getCustomerInfo();
       const info = await Purchases.restorePurchases();
       if (info.entitlements.active[RC_ENTITLEMENT]) {
+        const status = getSubscriptionStatus(info);
+        const source = info.originalAppUserId === before.originalAppUserId ? 'restored' : 'transferred';
+        if (status) syncStatus({ status, source }).catch(() => {});
         router.back();
       } else {
         setError('No active subscription found.');
@@ -228,17 +234,17 @@ export default function PaywallScreen() {
     }
   };
 
+  const insets = useSafeAreaInsets();
   const continueLabel = selectedPlan ? `Pay ${selectedPlan.price}` : 'Subscribe';
 
   return (
     <View style={{ flex: 1, backgroundColor: T.background }}>
-      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{
             flexGrow: 1,
             paddingHorizontal: 24,
-            paddingTop: 16,
+            paddingTop: insets.top + 16,
             paddingBottom: 24,
           }}
         >
@@ -439,7 +445,7 @@ export default function PaywallScreen() {
         </ScrollView>
 
         {/* Bottom CTA */}
-        <View style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16 }}>
+        <View style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: insets.bottom + 16 }}>
           <Text
             style={{
               fontFamily: Font.bodyReg,
@@ -485,7 +491,6 @@ export default function PaywallScreen() {
             )}
           </Pressable>
         </View>
-      </SafeAreaView>
     </View>
   );
 }

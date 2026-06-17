@@ -14,9 +14,9 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { OnboardingFrame } from '@/components/onboarding-frame';
 import { Colors, Font, Radius, type Theme } from '@/constants/theme';
-import { useClaimUsername, useSavePreferences } from '@/lib/convex-api';
+import { useClaimUsername, useSavePreferences, useSyncSubscriptionStatus } from '@/lib/convex-api';
 import { useOnboarding } from '@/lib/onboarding-store';
-import { RC_ENTITLEMENT } from '@/lib/purchases';
+import { RC_ENTITLEMENT, getSubscriptionStatus } from '@/lib/purchases';
 
 type Plan = {
   pkg: PurchasesPackage;
@@ -182,6 +182,7 @@ export default function PaywallScreen() {
   const { state: onboardingState } = useOnboarding();
   const savePreferences = useSavePreferences();
   const claimUsername = useClaimUsername();
+  const syncStatus = useSyncSubscriptionStatus();
 
   useEffect(() => {
     Purchases.getOfferings()
@@ -200,13 +201,14 @@ export default function PaywallScreen() {
     setSaving(true);
     setError(null);
     try {
-      const { customerInfo } = await Purchases.purchasePackage(
-        selectedPlan.pkg
-      );
+      const { customerInfo } = await Purchases.purchasePackage(selectedPlan.pkg);
       if (!customerInfo.entitlements.active[RC_ENTITLEMENT]) {
         setError('Purchase could not be verified. Please try again.');
         return;
       }
+
+      const status = getSubscriptionStatus(customerInfo);
+      if (status) syncStatus({ status, source: 'direct' }).catch(() => {});
 
       if (onboardingState.username) {
         try {
@@ -241,6 +243,27 @@ export default function PaywallScreen() {
       if (!err.userCancelled) {
         setError(err.message ?? 'Purchase failed. Please try again.');
       }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const before = await Purchases.getCustomerInfo();
+      const info = await Purchases.restorePurchases();
+      if (info.entitlements.active[RC_ENTITLEMENT]) {
+        const status = getSubscriptionStatus(info);
+        const source = info.originalAppUserId === before.originalAppUserId ? 'restored' : 'transferred';
+        if (status) syncStatus({ status, source }).catch(() => {});
+        router.replace('/');
+      } else {
+        setError('No active subscription found.');
+      }
+    } catch {
+      setError('Restore failed. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -451,7 +474,7 @@ export default function PaywallScreen() {
                 Privacy
               </Text>
             </Pressable>
-            <Pressable onPress={() => router.replace('/sign-in')}>
+            <Pressable onPress={handleRestore}>
               <Text
                 style={{
                   fontFamily: Font.bodyReg,

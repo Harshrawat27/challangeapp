@@ -17,6 +17,8 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 
+import Purchases from 'react-native-purchases';
+
 import { authClient } from '@/lib/auth-client';
 import { clearPrefsCache, useCachedPreferences, useChallengeHistory, useMyUsername, usePatchPrefs } from '@/lib/convex-api';
 import { useSubscription } from '@/lib/subscription-context';
@@ -157,9 +159,19 @@ export default function ProfileScreen() {
   const { data: session, isPending } = authClient.useSession();
   const user = session?.user;
 
-  const { isSubscribed } = useSubscription();
+  const { isSubscribed, status } = useSubscription();
   // Redirects unsubscribed users to the paywall instead of running the action.
   const gated = (fn: () => void) => () => isSubscribed ? fn() : router.push('/paywall');
+
+  const subscriptionLabel = status === 'yearly' ? 'Yearly' : status === 'monthly' ? 'Monthly' : status === 'weekly' ? 'Weekly' : null;
+
+  const handleManageSubscription = useCallback(async () => {
+    try {
+      await Purchases.showManageSubscriptions();
+    } catch {
+      Linking.openURL('https://apps.apple.com/account/subscriptions');
+    }
+  }, []);
 
   const [signingOut, setSigningOut] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -532,6 +544,20 @@ export default function ProfileScreen() {
             </Card>
           </Animated.View>
 
+          {/* ═══ Reminders ═══════════════════════════════════════════ */}
+          <Animated.View entering={FadeInDown.delay(270).duration(420)}>
+            <SectionLabel T={T}>Reminders</SectionLabel>
+            <Card T={T}>
+              <Row
+                label='Manage reminders'
+                chevron
+                onPress={() => router.push('/reminders')}
+                isLast
+                T={T}
+              />
+            </Card>
+          </Animated.View>
+
           {/* ═══ About ═══════════════════════════════════════════════ */}
           <Animated.View entering={FadeInDown.delay(280).duration(420)}>
             <SectionLabel T={T}>About</SectionLabel>
@@ -556,6 +582,43 @@ export default function ProfileScreen() {
                 onPress={() => openUrl('mailto:hello@hardpact.com')}
                 T={T}
               />
+            </Card>
+          </Animated.View>
+
+          {/* ═══ Subscription ════════════════════════════════════════ */}
+          <Animated.View entering={FadeInDown.delay(320).duration(420)}>
+            <SectionLabel T={T}>Subscription</SectionLabel>
+            <Card T={T}>
+              {isSubscribed ? (
+                <>
+                  <View style={{
+                    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                    paddingHorizontal: 16, paddingVertical: 14,
+                    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: T.hairline,
+                  }}>
+                    <Text style={{ fontFamily: Font.bodySemi, fontSize: 15, color: T.text, letterSpacing: -0.1 }}>
+                      HardPact Pro
+                    </Text>
+                    <View style={{
+                      backgroundColor: T.invertBg, paddingHorizontal: 10,
+                      paddingVertical: 4, borderRadius: Radius.pill,
+                    }}>
+                      <Text style={{ fontFamily: Font.bodyBold, fontSize: 11, color: T.invertText, letterSpacing: 0.4 }}>
+                        {subscriptionLabel?.toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+                  <Row label='Manage subscription' chevron onPress={handleManageSubscription} isLast T={T} />
+                </>
+              ) : (
+                <Row
+                  label='Upgrade to Pro'
+                  chevron
+                  onPress={() => router.push('/paywall')}
+                  isLast
+                  T={T}
+                />
+              )}
             </Card>
           </Animated.View>
 

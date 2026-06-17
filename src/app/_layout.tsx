@@ -123,6 +123,7 @@ function RootLayoutNav() {
         <Stack.Screen name='water-log' options={{ presentation: 'formSheet' }} />
         <Stack.Screen name='settings' />
         <Stack.Screen name='paywall' options={{ presentation: 'fullScreenModal' }} />
+        <Stack.Screen name='reminders' />
         <Stack.Screen name='change-challenge' />
         <Stack.Screen name='challenge-history' />
         <Stack.Screen name='camera' options={{ presentation: 'fullScreenModal' }} />

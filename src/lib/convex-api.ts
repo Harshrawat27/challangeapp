@@ -61,7 +61,7 @@ const userPreferencesPatch = makeFunctionReference<
 
 const userPreferencesSyncSubscription = makeFunctionReference<
   'mutation',
-  { status: 'weekly' | 'monthly' | 'yearly' | 'expired' },
+  { status: 'weekly' | 'monthly' | 'yearly' | 'expired'; source?: 'direct' | 'restored' | 'transferred' },
   void
 >('userPreferences:syncSubscriptionStatus');
 
@@ -541,4 +541,54 @@ const userPreferencesGetHistory = makeFunctionReference<
 
 export function useChallengeHistory(): ChallengeHistoryEntry[] | undefined {
   return useQuery(userPreferencesGetHistory, {});
+}
+
+// ─── reminders ───────────────────────────────────────────────────────────────
+
+export type ReminderType = 'daily' | 'twice_daily' | 'thrice_daily' | 'every_x_hours' | 'weekly';
+
+export type Reminder = {
+  _id: string;
+  _creationTime: number;
+  userId: string;
+  label: string;
+  type: ReminderType;
+  times: string[];
+  intervalHours?: number;
+  intervalStart?: string;
+  intervalEnd?: string;
+  daysOfWeek?: number[];
+  isActive: boolean;
+  createdAt: string;
+};
+
+export type ReminderInput = {
+  label: string;
+  type: ReminderType;
+  times: string[];
+  intervalHours?: number;
+  intervalStart?: string;
+  intervalEnd?: string;
+  daysOfWeek?: number[];
+};
+
+const remindersList = makeFunctionReference<'query', Record<string, never>, Reminder[]>('reminders:list');
+const remindersCreate = makeFunctionReference<'mutation', ReminderInput, string>('reminders:create');
+const remindersUpdate = makeFunctionReference<'mutation', Partial<ReminderInput> & { id: string; isActive?: boolean }, void>('reminders:update');
+const remindersRemove = makeFunctionReference<'mutation', { id: string }, void>('reminders:remove');
+
+export function useReminders(): Reminder[] | undefined {
+  return useQuery(remindersList, {});
+}
+
+export function useCreateReminder() {
+  return useMutation(remindersCreate);
+}
+
+export function useUpdateReminder() {
+  return useMutation(remindersUpdate);
+}
+
+export function useRemoveReminder() {
+  return useMutation(remindersRemove);
 }
