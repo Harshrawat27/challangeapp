@@ -1,17 +1,21 @@
-import Purchases, { LOG_LEVEL, type CustomerInfo } from 'react-native-purchases';
 import { Platform } from 'react-native';
+import Purchases, {
+  LOG_LEVEL,
+  type CustomerInfo,
+} from 'react-native-purchases';
 
 // The entitlement name you create in the RevenueCat dashboard.
-export const RC_ENTITLEMENT = 'pro';
+export const RC_ENTITLEMENT = 'HardPact Pro';
 
 export type SubscriptionStatus = 'weekly' | 'monthly' | 'yearly' | 'expired';
 
 // Call once at app startup (before any navigation renders).
 export function configurePurchases() {
   if (__DEV__) Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-  const apiKey = Platform.OS === 'ios'
-    ? process.env.EXPO_PUBLIC_RC_IOS_KEY!
-    : process.env.EXPO_PUBLIC_RC_ANDROID_KEY!;
+  const apiKey =
+    Platform.OS === 'ios'
+      ? process.env.EXPO_PUBLIC_RC_IOS_KEY!
+      : process.env.EXPO_PUBLIC_RC_ANDROID_KEY!;
   Purchases.configure({ apiKey });
 }
 
@@ -27,7 +31,10 @@ export async function loginPurchases(userId: string) {
 // Call on sign-out so the next user starts fresh.
 export async function logoutPurchases() {
   try {
-    await Purchases.logOut();
+    const info = await Purchases.getCustomerInfo();
+    if (!info.originalAppUserId.startsWith('$RCAnonymousID')) {
+      await Purchases.logOut();
+    }
   } catch (e) {
     console.warn('[RC] logOut failed:', e);
   }
@@ -38,7 +45,9 @@ export function isSubscriptionActive(info: CustomerInfo): boolean {
 }
 
 // Maps the active product identifier to a status string we mirror in Convex.
-export function getSubscriptionStatus(info: CustomerInfo): SubscriptionStatus | null {
+export function getSubscriptionStatus(
+  info: CustomerInfo
+): SubscriptionStatus | null {
   const entitlement = info.entitlements.active[RC_ENTITLEMENT];
   if (!entitlement) return null;
   const id = entitlement.productIdentifier.toLowerCase();
