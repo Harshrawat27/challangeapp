@@ -92,6 +92,7 @@ export function OnboardingFrame({
               borderRadius: 4,
               backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
               overflow: 'hidden',
+              marginHorizontal: 15,
             }}>
               <View style={{
                 width: `${progress * 100}%`,
@@ -101,17 +102,8 @@ export function OnboardingFrame({
               }} />
             </View>
 
-            {/* Step count (subtle) */}
-            <Text style={{
-              fontFamily: Font.bodyMed,
-              fontSize: 11,
-              color: T.textSubtle,
-              letterSpacing: 0.4,
-              minWidth: 36,
-              textAlign: 'right',
-            }}>
-              {step}/{TOTAL_STEPS}
-            </Text>
+            {/* Right spacer to mirror back button and center the bar */}
+            <View style={{ width: 36 }} />
           </View>
 
           {/* ── Body ─────────────────────────────────────────── */}

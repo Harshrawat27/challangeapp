@@ -16,11 +16,22 @@ import Constants from 'expo-constants';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 
 import Purchases from 'react-native-purchases';
 
 import { authClient } from '@/lib/auth-client';
-import { clearPrefsCache, useCachedPreferences, useChallengeHistory, useMyUsername, usePatchPrefs } from '@/lib/convex-api';
+import {
+  clearPrefsCache,
+  useCachedPreferences,
+  useChallengeHistory,
+  useMyUsername,
+  usePatchPrefs,
+  useGenerateUploadUrl,
+  useSaveProfilePicture,
+  useProfilePictureUrl,
+} from '@/lib/convex-api';
 import { useSubscription } from '@/lib/subscription-context';
 import { getChallenge } from '@/constants/challenges';
 import { localDateString } from '@/lib/tasks';
@@ -258,6 +269,45 @@ export default function ProfileScreen() {
     [prefs?.name, user?.email],
   );
 
+  const generateUploadUrl = useGenerateUploadUrl();
+  const saveProfilePicture = useSaveProfilePicture();
+  const profilePictureUrl = useProfilePictureUrl(prefs?.profilePictureId);
+  const [uploading, setUploading] = useState(false);
+
+  const handlePickPhoto = useCallback(async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Allow photo library access to set a profile picture.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]) return;
+
+    const asset = result.assets[0];
+    setUploading(true);
+    try {
+      const uploadUrl = await generateUploadUrl({});
+      const fileResponse = await fetch(asset.uri);
+      const blob = await fileResponse.blob();
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': asset.mimeType ?? 'image/jpeg' },
+        body: blob,
+      });
+      const { storageId } = await uploadResponse.json();
+      await saveProfilePicture({ storageId });
+    } catch {
+      Alert.alert('Upload failed', 'Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  }, [generateUploadUrl, saveProfilePicture]);
+
   const challengeStatus = useMemo(() => {
     if (!prefs) return null;
     const ch = getChallenge(prefs.challenge as never);
@@ -333,24 +383,53 @@ export default function ProfileScreen() {
           <Animated.View entering={FadeInDown.delay(120).duration(420)} style={{ marginTop: 28 }}>
             <Card T={T}>
               <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 }}>
-                <View style={{
-                  width: 56, height: 56, borderRadius: 56,
-                  backgroundColor: T.invertBg,
-                  justifyContent: 'center', alignItems: 'center',
-                }}>
-                  {(isPending || prefs === undefined) ? (
-                    <ActivityIndicator size='small' color={T.invertText} />
-                  ) : (
-                    <Text style={{
-                      fontFamily: Font.displayBold,
-                      fontSize: 22,
-                      color: T.invertText,
-                      letterSpacing: -0.5,
+                <Pressable
+                  onPress={handlePickPhoto}
+                  disabled={uploading || isPending || prefs === undefined}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+                  <View style={{
+                    width: 56, height: 56, borderRadius: 56,
+                    backgroundColor: T.invertBg,
+                    justifyContent: 'center', alignItems: 'center',
+                    overflow: 'hidden',
+                  }}>
+                    {(isPending || prefs === undefined || uploading) ? (
+                      <ActivityIndicator size='small' color={T.invertText} />
+                    ) : profilePictureUrl ? (
+                      <Image
+                        source={{ uri: profilePictureUrl }}
+                        style={{ width: 56, height: 56 }}
+                        contentFit='cover'
+                      />
+                    ) : (
+                      <Text style={{
+                        fontFamily: Font.displayBold,
+                        fontSize: 22,
+                        color: T.invertText,
+                        letterSpacing: -0.5,
+                      }}>
+                        {initial}
+                      </Text>
+                    )}
+                  </View>
+                  {/* edit badge */}
+                  {!uploading && prefs !== undefined && (
+                    <View style={{
+                      position: 'absolute', bottom: 0, right: 0,
+                      width: 18, height: 18, borderRadius: 9,
+                      backgroundColor: T.background,
+                      borderWidth: 1.5, borderColor: T.cardBorder,
+                      justifyContent: 'center', alignItems: 'center',
                     }}>
-                      {initial}
-                    </Text>
+                      <Text style={{
+                        fontFamily: Font.icon, fontSize: 10, lineHeight: 11,
+                        color: T.text, includeFontPadding: false,
+                      }}>
+                        edit
+                      </Text>
+                    </View>
                   )}
-                </View>
+                </Pressable>
                 <View style={{ flex: 1 }}>
                   <Text
                     numberOfLines={1}

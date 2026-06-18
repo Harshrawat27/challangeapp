@@ -43,6 +43,7 @@ export type UserPreferencesRow = UserPreferencesSaveArgs & {
   userId: string;
   onboardingCompletedAt: string;
   subscriptionStatus?: 'weekly' | 'monthly' | 'yearly' | 'expired';
+  profilePictureId?: string;
 };
 
 const userPreferencesSave = makeFunctionReference<'mutation', UserPreferencesSaveArgs, string>(
@@ -65,6 +66,18 @@ const userPreferencesSyncSubscription = makeFunctionReference<
   void
 >('userPreferences:syncSubscriptionStatus');
 
+const userPreferencesGenerateUploadUrl = makeFunctionReference<'mutation', Record<string, never>, string>(
+  'userPreferences:generateUploadUrl',
+);
+
+const userPreferencesSaveProfilePicture = makeFunctionReference<'mutation', { storageId: string }, void>(
+  'userPreferences:saveProfilePicture',
+);
+
+const userPreferencesGetProfilePictureUrl = makeFunctionReference<'query', { storageId: string }, string | null>(
+  'userPreferences:getProfilePictureUrl',
+);
+
 /** Save the entire onboarding payload. Idempotent — upserts the current user's row. */
 export function useSavePreferences() {
   return useMutation(userPreferencesSave);
@@ -78,6 +91,21 @@ export function usePatchPrefs() {
 /** Fast-path: sync subscription status to Convex right after a RC purchase, before the webhook arrives. */
 export function useSyncSubscriptionStatus() {
   return useMutation(userPreferencesSyncSubscription);
+}
+
+export function useGenerateUploadUrl() {
+  return useMutation(userPreferencesGenerateUploadUrl);
+}
+
+export function useSaveProfilePicture() {
+  return useMutation(userPreferencesSaveProfilePicture);
+}
+
+export function useProfilePictureUrl(storageId: string | null | undefined): string | null | undefined {
+  return useQuery(
+    userPreferencesGetProfilePictureUrl,
+    storageId ? { storageId } : 'skip' as never,
+  );
 }
 
 /**
@@ -298,6 +326,7 @@ export type FriendCard = {
   challengeStartDate: string | null;
   customHabits: string[];
   currentDay: number | null;
+  profilePictureUrl: string | null;
   todayCompleted: number;
   todayExpected: number;
   todayTaskIds: string[];
@@ -311,6 +340,7 @@ export type FriendDetail = {
   challengeLength: number | null;
   challengeStartDate: string | null;
   customHabits: string[];
+  profilePictureUrl: string | null;
   logs: DailyLog[];
 } | null;
 

@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useColorScheme,
+} from 'react-native';
 import { router } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 import { OnboardingFrame } from '@/components/onboarding-frame';
 import { authClient } from '@/lib/auth-client';
@@ -42,6 +52,63 @@ function Field({
   );
 }
 
+function SocialButton({
+  provider, loading, disabled, onPress, T, isDark,
+}: {
+  provider: 'google' | 'apple';
+  loading: boolean;
+  disabled: boolean;
+  onPress: () => void;
+  T: Theme;
+  isDark?: boolean;
+}) {
+  const isApple = provider === 'apple';
+  const bgColor = isApple ? (isDark ? '#FFFFFF' : '#000000') : T.card;
+  const textColor = isApple ? (isDark ? '#000000' : '#FFFFFF') : T.text;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => ({
+        height: 52,
+        borderRadius: Radius.pill,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        backgroundColor: bgColor,
+        borderWidth: isApple ? 0 : StyleSheet.hairlineWidth,
+        borderColor: T.cardBorder,
+        opacity: pressed || disabled ? 0.65 : 1,
+      })}>
+      {loading ? (
+        <ActivityIndicator color={textColor} />
+      ) : (
+        <>
+          <Text style={{
+            fontFamily: Font.icon,
+            fontSize: 20,
+            lineHeight: 22,
+            color: isApple ? textColor : '#4285F4',
+            includeFontPadding: false,
+          }}>
+            {isApple ? 'apple' : 'g_mobiledata'}
+          </Text>
+          <Text style={{
+            fontFamily: Font.displaySemi,
+            fontSize: 15,
+            color: textColor,
+            letterSpacing: -0.2,
+          }}>
+            Continue with {isApple ? 'Apple' : 'Google'}
+          </Text>
+        </>
+      )}
+    </Pressable>
+  );
+}
+
 export default function AccountScreen() {
   const isDark = useColorScheme() === 'dark';
   const T = Colors[isDark ? 'dark' : 'light'];
@@ -51,17 +118,52 @@ export default function AccountScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Google/Apple users already have a session by the time they reach this screen.
-  // Skip email signup and go straight to saving preferences in paywall.
   useEffect(() => {
     if (!isPending && session) {
       router.replace('/onboarding/paywall');
     }
   }, [session, isPending]);
 
-  const canSubmit = email.trim().length > 3 && password.length >= 8 && !loading;
+  const busy = loading || !!socialLoading;
+  const canSubmit = email.trim().length > 3 && password.length >= 8 && !busy;
+
+  const handleGoogle = async () => {
+    setError(null);
+    setSocialLoading('google');
+    try {
+      await authClient.signIn.social({ provider: 'google', callbackURL: '/onboarding/paywall' });
+    } catch {
+      setError('Could not sign in with Google. Please try again.');
+    } finally {
+      setSocialLoading(null);
+    }
+  };
+
+  const handleApple = async () => {
+    setError(null);
+    setSocialLoading('apple');
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      if (!credential.identityToken) throw new Error('No identity token');
+      await authClient.signIn.social({
+        provider: 'apple',
+        idToken: { token: credential.identityToken },
+      } as never);
+    } catch (e: unknown) {
+      if ((e as { code?: string })?.code === 'ERR_REQUEST_CANCELED') return;
+      setError('Apple sign-in failed. Please try again.');
+    } finally {
+      setSocialLoading(null);
+    }
+  };
 
   const handleSubmit = async () => {
     setError(null);
@@ -77,7 +179,6 @@ export default function AccountScreen() {
       setError(err.message ?? 'Could not create account.');
       return;
     }
-    // Username is claimed in paywall.tsx once the Convex auth token has synced.
     setLoading(false);
     router.push('/onboarding/paywall');
   };
@@ -117,7 +218,50 @@ export default function AccountScreen() {
           </Text>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(260).duration(440)}>
+        {/* Social buttons */}
+        <Animated.View entering={FadeInDown.delay(220).duration(440)} style={{ gap: 10, marginBottom: 20 }}>
+          <SocialButton
+            provider='google'
+            loading={socialLoading === 'google'}
+            disabled={busy}
+            onPress={handleGoogle}
+            T={T}
+          />
+          {Platform.OS === 'ios' ? (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+              buttonStyle={isDark
+                ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+              cornerRadius={100}
+              style={{ height: 52 }}
+              onPress={handleApple}
+            />
+          ) : (
+            <SocialButton
+              provider='apple'
+              loading={socialLoading === 'apple'}
+              disabled={busy}
+              onPress={handleApple}
+              T={T}
+              isDark={isDark}
+            />
+          )}
+        </Animated.View>
+
+        {/* Divider */}
+        <Animated.View entering={FadeInDown.delay(280).duration(440)} style={{
+          flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20,
+        }}>
+          <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: T.cardBorder }} />
+          <Text style={{ fontFamily: Font.bodyReg, fontSize: 12, color: T.textSubtle }}>
+            or sign up with email
+          </Text>
+          <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: T.cardBorder }} />
+        </Animated.View>
+
+        {/* Email / password */}
+        <Animated.View entering={FadeInDown.delay(340).duration(440)}>
           <Field
             T={T}
             label='Email'
@@ -165,7 +309,7 @@ export default function AccountScreen() {
             textAlign: 'center',
             letterSpacing: -0.05,
           }}>
-            Hi {state.name.split(/\s+/)[0]} 👋 — we&apos;ll save your name and challenge to your account.
+            Hi {state.name.split(/\s+/)[0]} — we'll save your name and challenge to your account.
           </Text>
         </Animated.View>
       </View>

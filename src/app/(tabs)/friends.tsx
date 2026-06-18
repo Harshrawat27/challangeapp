@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown, Layout } from 'react-native-reanimated';
 import { router } from 'expo-router';
+import { Image } from 'expo-image';
 
 import {
   useAcceptFriendRequest,
@@ -83,10 +84,19 @@ function FriendBigCard({ f, onRemove, T }: {
             width: 50, height: 50, borderRadius: 50,
             backgroundColor: T.invertBg,
             justifyContent: 'center', alignItems: 'center',
+            overflow: 'hidden',
           }}>
-            <Text style={{ fontFamily: Font.displayBold, fontSize: 20, color: T.invertText, letterSpacing: -0.4 }}>
-              {initial}
-            </Text>
+            {f.profilePictureUrl ? (
+              <Image
+                source={{ uri: f.profilePictureUrl }}
+                style={{ width: 50, height: 50 }}
+                contentFit='cover'
+              />
+            ) : (
+              <Text style={{ fontFamily: Font.displayBold, fontSize: 20, color: T.invertText, letterSpacing: -0.4 }}>
+                {initial}
+              </Text>
+            )}
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ fontFamily: Font.displaySemi, fontSize: 16, color: T.text, letterSpacing: -0.3 }}>

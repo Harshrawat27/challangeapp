@@ -14,7 +14,11 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { OnboardingFrame } from '@/components/onboarding-frame';
 import { Colors, Font, Radius, type Theme } from '@/constants/theme';
-import { useClaimUsername, useSavePreferences, useSyncSubscriptionStatus } from '@/lib/convex-api';
+import {
+  useClaimUsername,
+  useSavePreferences,
+  useSyncSubscriptionStatus,
+} from '@/lib/convex-api';
 import { useOnboarding } from '@/lib/onboarding-store';
 import { RC_ENTITLEMENT, getSubscriptionStatus } from '@/lib/purchases';
 
@@ -201,7 +205,9 @@ export default function PaywallScreen() {
     setSaving(true);
     setError(null);
     try {
-      const { customerInfo } = await Purchases.purchasePackage(selectedPlan.pkg);
+      const { customerInfo } = await Purchases.purchasePackage(
+        selectedPlan.pkg
+      );
       if (!customerInfo.entitlements.active[RC_ENTITLEMENT]) {
         setError('Purchase could not be verified. Please try again.');
         return;
@@ -256,7 +262,10 @@ export default function PaywallScreen() {
       const info = await Purchases.restorePurchases();
       if (info.entitlements.active[RC_ENTITLEMENT]) {
         const status = getSubscriptionStatus(info);
-        const source = info.originalAppUserId === before.originalAppUserId ? 'restored' : 'transferred';
+        const source =
+          info.originalAppUserId === before.originalAppUserId
+            ? 'restored'
+            : 'transferred';
         if (status) syncStatus({ status, source }).catch(() => {});
         router.replace('/');
       } else {
@@ -269,7 +278,9 @@ export default function PaywallScreen() {
     }
   };
 
-  const continueLabel = selectedPlan ? `Pay ${selectedPlan.price}` : 'Subscribe';
+  const continueLabel = selectedPlan
+    ? `Pay ${selectedPlan.price}`
+    : 'Subscribe';
 
   return (
     <OnboardingFrame

@@ -11,6 +11,7 @@ import {
   useColorScheme,
   useWindowDimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
@@ -255,10 +256,19 @@ export default function FriendDetailScreen() {
             width: 68, height: 68, borderRadius: 68,
             backgroundColor: T.invertBg,
             justifyContent: 'center', alignItems: 'center',
+            overflow: 'hidden',
           }}>
-            <Text style={{ fontFamily: Font.displayBold, fontSize: 26, color: T.invertText, letterSpacing: -0.6 }}>
-              {initial}
-            </Text>
+            {detail.profilePictureUrl ? (
+              <Image
+                source={{ uri: detail.profilePictureUrl }}
+                style={{ width: 68, height: 68 }}
+                contentFit='cover'
+              />
+            ) : (
+              <Text style={{ fontFamily: Font.displayBold, fontSize: 26, color: T.invertText, letterSpacing: -0.6 }}>
+                {initial}
+              </Text>
+            )}
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ fontFamily: Font.displayBlack, fontSize: 24, color: T.text, letterSpacing: -0.6, lineHeight: 28 }}>

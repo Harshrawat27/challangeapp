@@ -24,6 +24,7 @@ export default function OnboardingLayout() {
       <Stack.Screen name='username' />
       <Stack.Screen name='account' />
       <Stack.Screen name='paywall' />
+      <Stack.Screen name='sign-in' />
     </Stack>
   );
 }
