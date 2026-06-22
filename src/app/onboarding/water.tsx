@@ -66,7 +66,7 @@ export default function WaterGoalScreen() {
             fontFamily: Font.bodyMed, fontSize: 11, letterSpacing: 2.4, color: T.textDim,
             marginBottom: 12,
           }}>
-            STEP 13 — HYDRATION
+            HYDRATION
           </Text>
         </Animated.View>
 

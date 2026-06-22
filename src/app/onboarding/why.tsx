@@ -72,7 +72,7 @@ export default function WhyScreen() {
 
   return (
     <OnboardingFrame
-      step={6}
+      step={3}
       onContinue={() => router.push('/onboarding/failures')}
       continueDisabled={selected.length === 0}>
       <View style={{ flex: 1 }}>
@@ -81,7 +81,7 @@ export default function WhyScreen() {
             fontFamily: Font.bodyMed, fontSize: 11, letterSpacing: 2.4, color: T.textDim,
             marginBottom: 12,
           }}>
-            STEP 05 — YOUR WHY
+            YOUR WHY
           </Text>
         </Animated.View>
 

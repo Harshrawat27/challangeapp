@@ -8,6 +8,8 @@ export default function OnboardingLayout() {
   return (
     <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
       <Stack.Screen name='welcome' />
+      <Stack.Screen name='friends' />
+      <Stack.Screen name='become' />
       <Stack.Screen name='name' />
       <Stack.Screen name='challenge' />
       <Stack.Screen name='rules' />

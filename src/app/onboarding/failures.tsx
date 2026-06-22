@@ -82,7 +82,7 @@ export default function FailuresScreen() {
 
   return (
     <OnboardingFrame
-      step={7}
+      step={4}
       onContinue={() => router.push('/onboarding/serious')}
       continueDisabled={selected.length === 0}>
       <View style={{ flex: 1 }}>
@@ -91,7 +91,7 @@ export default function FailuresScreen() {
             fontFamily: Font.bodyMed, fontSize: 11, letterSpacing: 2.4, color: T.textDim,
             marginBottom: 12,
           }}>
-            STEP 06 — HONESTY
+            HONESTY
           </Text>
         </Animated.View>
 

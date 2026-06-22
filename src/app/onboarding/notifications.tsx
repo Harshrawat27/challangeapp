@@ -152,7 +152,7 @@ export default function NotificationsScreen() {
             fontFamily: Font.bodyMed, fontSize: 11, letterSpacing: 2.4, color: T.textDim,
             marginBottom: 12,
           }}>
-            STEP 12 — STAY ON TRACK
+            STAY ON TRACK
           </Text>
         </Animated.View>
 

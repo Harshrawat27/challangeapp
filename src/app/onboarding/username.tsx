@@ -134,7 +134,7 @@ export default function UsernameScreen() {
             color: T.textDim,
             marginBottom: 12,
           }}>
-            STEP 13 — YOUR HANDLE
+            YOUR HANDLE
           </Text>
         </Animated.View>
 

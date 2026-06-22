@@ -315,7 +315,7 @@ export default function PaywallScreen() {
               marginBottom: 12,
             }}
           >
-            STEP 15 — CHOOSE YOUR PLAN
+            CHOOSE YOUR PLAN
           </Text>
         </Animated.View>
 

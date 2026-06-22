@@ -77,7 +77,7 @@ export default function RulesScreen() {
   if (!challenge) {
     // Shouldn't happen if user came through the proper flow
     return (
-      <OnboardingFrame step={4} onContinue={() => router.replace('/onboarding/challenge')}>
+      <OnboardingFrame step={7} onContinue={() => router.replace('/onboarding/challenge')}>
         <Text style={{ color: T.text, fontFamily: Font.bodyMed }}>
           No challenge selected. Go back.
         </Text>
@@ -89,7 +89,7 @@ export default function RulesScreen() {
 
   return (
     <OnboardingFrame
-      step={4}
+      step={7}
       onContinue={() => router.push('/onboarding/customize')}>
       <View style={{ flex: 1 }}>
         <Animated.View entering={FadeIn.duration(400)}>
@@ -100,7 +100,7 @@ export default function RulesScreen() {
             color: T.textDim,
             marginBottom: 12,
           }}>
-            STEP 03 — THE RULES
+            THE RULES
           </Text>
         </Animated.View>
 

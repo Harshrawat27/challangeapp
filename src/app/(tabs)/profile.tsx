@@ -687,11 +687,12 @@ export default function ProfileScreen() {
                       </Text>
                     </View>
                   </View>
-                  <Row label='Manage subscription' chevron onPress={handleManageSubscription} isLast T={T} />
+                  <Row label='Manage subscription' chevron onPress={handleManageSubscription} T={T} />
+                  <Row label='Plan & pricing' chevron onPress={() => router.push('/paywall')} isLast T={T} />
                 </>
               ) : (
                 <Row
-                  label='Upgrade to Pro'
+                  label='Plan & pricing'
                   chevron
                   onPress={() => router.push('/paywall')}
                   isLast

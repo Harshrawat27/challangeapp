@@ -118,7 +118,7 @@ export default function ProofScreen() {
             fontFamily: Font.bodyMed, fontSize: 11, letterSpacing: 2.4, color: T.textDim,
             marginBottom: 12,
           }}>
-            STEP 10 — PROOF
+            PROOF
           </Text>
         </Animated.View>
 

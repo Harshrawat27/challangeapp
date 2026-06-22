@@ -16,8 +16,8 @@ import { Colors, Font, MaxContentWidth } from '@/constants/theme';
 
 const LINES = [
   'Reviewing your goals…',
-  'Mapping your habits…',
-  'Calibrating reminders…',
+  'Matching challenge difficulty…',
+  'Checking your commitment level…',
   'Almost there…',
 ];
 
@@ -48,7 +48,7 @@ export default function PersonalizingScreen() {
     });
     // Navigate when done
     timers.push(setTimeout(() => {
-      router.replace('/onboarding/transformation');
+      router.replace('/onboarding/challenge');
     }, TOTAL_DURATION + 200));
     return () => { timers.forEach(clearTimeout); };
   }, []);
@@ -85,7 +85,7 @@ export default function PersonalizingScreen() {
               textAlign: 'center',
               marginBottom: 40,
             }}>
-              Building your plan.
+              Finding your perfect challenge.
             </Text>
           </Animated.View>
 

@@ -64,7 +64,7 @@ export default function SeriousScreen() {
 
   return (
     <OnboardingFrame
-      step={8}
+      step={5}
       onContinue={() => router.push('/onboarding/personalizing')}>
       <View style={{ flex: 1 }}>
         <Animated.View entering={FadeIn.duration(400)}>
@@ -72,7 +72,7 @@ export default function SeriousScreen() {
             fontFamily: Font.bodyMed, fontSize: 11, letterSpacing: 2.4, color: T.textDim,
             marginBottom: 12,
           }}>
-            STEP 07 — COMMITMENT
+            COMMITMENT
           </Text>
         </Animated.View>
 

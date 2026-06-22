@@ -91,7 +91,7 @@ export default function TransformationScreen() {
 
   return (
     <OnboardingFrame
-      step={10}
+      step={9}
       onContinue={() => router.push('/onboarding/proof')}>
       <View style={{ flex: 1 }}>
         <Animated.View entering={FadeIn.duration(400)}>
@@ -99,7 +99,7 @@ export default function TransformationScreen() {
             fontFamily: Font.bodyMed, fontSize: 11, letterSpacing: 2.4, color: T.textDim,
             marginBottom: 12,
           }}>
-            STEP 09 — YOUR PROJECTION
+            YOUR PROJECTION
           </Text>
         </Animated.View>
 

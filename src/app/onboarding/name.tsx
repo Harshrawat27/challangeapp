@@ -19,7 +19,7 @@ export default function NameScreen() {
 
   const handleContinue = () => {
     update('name', trimmed);
-    router.push('/onboarding/challenge');
+    router.push('/onboarding/why');
   };
 
   return (
@@ -36,7 +36,7 @@ export default function NameScreen() {
             color: T.textDim,
             marginBottom: 12,
           }}>
-            STEP 01 — IDENTITY
+            IDENTITY
           </Text>
         </Animated.View>
 

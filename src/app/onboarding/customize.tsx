@@ -1,21 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   NativeScrollEvent,
   NativeSyntheticEvent,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
   useColorScheme,
   useWindowDimensions,
 } from 'react-native';
 import { router } from 'expo-router';
-import Animated, { FadeIn, FadeInDown, Layout } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { OnboardingFrame } from '@/components/onboarding-frame';
-import { Colors, Font, MaxContentWidth, Radius, type Theme } from '@/constants/theme';
+import { Colors, Font, MaxContentWidth, type Theme } from '@/constants/theme';
 import { useOnboarding } from '@/lib/onboarding-store';
 import { getChallenge } from '@/constants/challenges';
 
@@ -184,62 +182,6 @@ function LengthSlider({
   );
 }
 
-// ─── Custom Habit Row ───────────────────────────────────────────────────────
-
-function HabitRow({
-  text,
-  onRemove,
-  T,
-}: { text: string; onRemove: () => void; T: Theme }) {
-  return (
-    <Animated.View
-      layout={Layout.springify().damping(18)}
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: T.card,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: T.cardBorder,
-        borderRadius: Radius.md,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        gap: 12,
-      }}>
-      <View style={{
-        width: 32, height: 32, borderRadius: 10,
-        backgroundColor: T.hairline,
-        justifyContent: 'center', alignItems: 'center',
-      }}>
-        <Text style={{ fontFamily: Font.icon, fontSize: 18, color: T.text, lineHeight: 20 }}>
-          task_alt
-        </Text>
-      </View>
-      <Text
-        numberOfLines={1}
-        style={{
-          flex: 1,
-          fontFamily: Font.bodyMed,
-          fontSize: 14,
-          color: T.text,
-          letterSpacing: -0.1,
-        }}>
-        {text}
-      </Text>
-      <Pressable
-        onPress={onRemove}
-        hitSlop={10}
-        style={({ pressed }) => ({
-          opacity: pressed ? 0.4 : 1,
-          padding: 4,
-        })}>
-        <Text style={{ fontFamily: Font.icon, fontSize: 18, color: T.textDim, lineHeight: 20 }}>
-          close
-        </Text>
-      </Pressable>
-    </Animated.View>
-  );
-}
-
 // ─── Screen ─────────────────────────────────────────────────────────────────
 
 export default function CustomizeScreen() {
@@ -249,27 +191,10 @@ export default function CustomizeScreen() {
   const { state, update } = useOnboarding();
   const challenge = getChallenge(state.challenge);
 
-  const [habitInput, setHabitInput] = useState('');
-
-  const addHabit = useCallback(() => {
-    const text = habitInput.trim();
-    if (!text) return;
-    if (state.customHabits.includes(text)) {
-      setHabitInput('');
-      return;
-    }
-    update('customHabits', [...state.customHabits, text]);
-    setHabitInput('');
-  }, [habitInput, state.customHabits, update]);
-
-  const removeHabit = useCallback((text: string) => {
-    update('customHabits', state.customHabits.filter(h => h !== text));
-  }, [state.customHabits, update]);
-
   return (
     <OnboardingFrame
-      step={5}
-      onContinue={() => router.push('/onboarding/why')}
+      step={8}
+      onContinue={() => router.push('/onboarding/transformation')}
       continueLabel='Continue'>
       <View style={{ flex: 1 }}>
         <Animated.View entering={FadeIn.duration(400)}>
@@ -280,7 +205,7 @@ export default function CustomizeScreen() {
             color: T.textDim,
             marginBottom: 12,
           }}>
-            STEP 04 — CUSTOMIZE
+            CUSTOMIZE
           </Text>
         </Animated.View>
 
@@ -312,7 +237,7 @@ export default function CustomizeScreen() {
         </Animated.View>
 
         {/* Length slider */}
-        <Animated.View entering={FadeInDown.delay(260).duration(480)} style={{ marginBottom: 40 }}>
+        <Animated.View entering={FadeInDown.delay(260).duration(480)}>
           <LengthSlider
             value={state.challengeLength}
             onChange={(v) => update('challengeLength', v)}
@@ -320,112 +245,6 @@ export default function CustomizeScreen() {
             isDark={isDark}
           />
         </Animated.View>
-
-        {/* Divider */}
-        <View style={{
-          height: StyleSheet.hairlineWidth,
-          backgroundColor: T.hairline,
-          marginBottom: 28,
-        }} />
-
-        {/* Custom habits */}
-        <Animated.View entering={FadeInDown.delay(380).duration(440)}>
-          <Text style={{
-            fontFamily: Font.displayBold,
-            fontSize: 22,
-            color: T.text,
-            letterSpacing: -0.6,
-            marginBottom: 6,
-          }}>
-            Add habits (optional).
-          </Text>
-          <Text style={{
-            fontFamily: Font.bodyReg,
-            fontSize: 13.5,
-            color: T.textDim,
-            lineHeight: 19,
-            marginBottom: 16,
-            letterSpacing: -0.05,
-          }}>
-            Stack things you want to commit to daily — cold shower, meditation, anything.
-          </Text>
-        </Animated.View>
-
-        {/* Input row */}
-        <Animated.View
-          entering={FadeInDown.delay(460).duration(440)}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 10,
-            marginBottom: 14,
-          }}>
-          <View style={{
-            flex: 1,
-            backgroundColor: T.card,
-            borderRadius: Radius.md,
-            borderWidth: StyleSheet.hairlineWidth,
-            borderColor: T.cardBorder,
-            paddingHorizontal: 14,
-            height: 50,
-            justifyContent: 'center',
-          }}>
-            <TextInput
-              value={habitInput}
-              onChangeText={setHabitInput}
-              onSubmitEditing={addHabit}
-              placeholder='e.g. Cold shower in the morning'
-              placeholderTextColor={T.textSubtle}
-              returnKeyType='done'
-              style={{
-                fontFamily: Font.bodyMed,
-                fontSize: 14,
-                color: T.text,
-                letterSpacing: -0.1,
-              }}
-            />
-          </View>
-          <Pressable
-            onPress={addHabit}
-            disabled={!habitInput.trim()}
-            style={({ pressed }) => ({
-              width: 50,
-              height: 50,
-              borderRadius: 50,
-              backgroundColor: T.invertBg,
-              justifyContent: 'center',
-              alignItems: 'center',
-              opacity: !habitInput.trim() ? 0.35 : (pressed ? 0.78 : 1),
-            })}>
-            <Text style={{ fontFamily: Font.icon, fontSize: 22, color: T.invertText, lineHeight: 24 }}>
-              add
-            </Text>
-          </Pressable>
-        </Animated.View>
-
-        {/* Habit list */}
-        <View style={{ gap: 10, marginTop: 4 }}>
-          {state.customHabits.map((h) => (
-            <HabitRow
-              key={h}
-              text={h}
-              onRemove={() => removeHabit(h)}
-              T={T}
-            />
-          ))}
-        </View>
-
-        {state.customHabits.length === 0 && (
-          <Text style={{
-            fontFamily: Font.bodyReg,
-            fontSize: 12.5,
-            color: T.textSubtle,
-            textAlign: 'center',
-            marginTop: 8,
-          }}>
-            No extras yet. You can add some now or skip this step.
-          </Text>
-        )}
       </View>
     </OnboardingFrame>
   );
