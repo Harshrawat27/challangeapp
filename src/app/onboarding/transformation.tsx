@@ -9,6 +9,11 @@ import type { ChallengeId } from '@/constants/challenges';
 
 type Stat = { value: string; label: string };
 
+function decodeHabit(raw: string): { icon: string; label: string } {
+  const s = raw.indexOf('::');
+  return s !== -1 ? { icon: raw.slice(0, s), label: raw.slice(s + 2) } : { icon: 'task_alt', label: raw };
+}
+
 function computeStats(challenge: ChallengeId | null, length: number, customHabits: string[]): Stat[] {
   const days = length;
   switch (challenge) {
@@ -131,6 +136,62 @@ export default function TransformationScreen() {
             </Animated.View>
           ))}
         </Animated.View>
+
+        {/* Custom habits */}
+        {state.customHabits.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(600).duration(440)} style={{ marginTop: 12 }}>
+            <View style={{
+              backgroundColor: T.card,
+              borderRadius: Radius.lg,
+              borderWidth: 1,
+              borderColor: T.cardBorder,
+              paddingHorizontal: 20,
+              paddingVertical: 14,
+              gap: 4,
+            }}>
+              <Text style={{
+                fontFamily: Font.bodyMed, fontSize: 10,
+                letterSpacing: 2, color: T.textSubtle,
+                marginBottom: 10,
+              }}>
+                PLUS YOUR OWN
+              </Text>
+              {state.customHabits.map((raw, i) => {
+                const { icon, label } = decodeHabit(raw);
+                return (
+                  <View key={raw} style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 12,
+                    paddingVertical: 6,
+                    borderBottomWidth: i < state.customHabits.length - 1 ? 1 : 0,
+                    borderBottomColor: T.hairline,
+                  }}>
+                    <Text style={{
+                      fontFamily: Font.icon, fontSize: 18,
+                      color: T.text, lineHeight: 20,
+                      includeFontPadding: false,
+                    }}>
+                      {icon}
+                    </Text>
+                    <Text style={{
+                      flex: 1,
+                      fontFamily: Font.displaySemi, fontSize: 14,
+                      color: T.text, letterSpacing: -0.2,
+                    }}>
+                      {label}
+                    </Text>
+                    <Text style={{
+                      fontFamily: Font.bodyMed, fontSize: 11,
+                      color: T.textSubtle, letterSpacing: 0.3,
+                      textTransform: 'uppercase',
+                    }}>
+                      Every day
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </Animated.View>
+        )}
 
         {/* Footer */}
         <Animated.View entering={FadeIn.delay(720).duration(440)} style={{ marginTop: 24 }}>
