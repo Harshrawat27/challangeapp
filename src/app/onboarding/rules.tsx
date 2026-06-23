@@ -4,6 +4,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -93,10 +94,23 @@ export default function RulesScreen() {
   const { state, update } = useOnboarding();
   const challenge = getChallenge(state.challenge);
 
+  const HABIT_ICONS = [
+    'fitness_center', 'directions_run', 'directions_bike', 'pool', 'hiking',
+    'self_improvement', 'favorite', 'spa', 'air', 'bedtime',
+    'sunny', 'water_drop', 'restaurant', 'no_drinks', 'local_cafe',
+    'book', 'school', 'psychology', 'music_note', 'star',
+    'emoji_events', 'bolt', 'timer', 'camera_alt', 'smoke_free',
+    'savings', 'brush', 'eco', 'thermostat', 'task_alt',
+  ];
+
+  const habitLabel = (raw: string) => { const s = raw.indexOf('::'); return s !== -1 ? raw.slice(s + 2) : raw; };
+  const habitIcon  = (raw: string) => { const s = raw.indexOf('::'); return s !== -1 ? raw.slice(0, s) : 'task_alt'; };
+
   const [sheetOpen, setSheetOpen] = useState(false);
   const [habitInput, setHabitInput] = useState('');
+  const [selectedIcon, setSelectedIcon] = useState(HABIT_ICONS[0]);
 
-  const sheetTranslateY = useSharedValue(400);
+  const sheetTranslateY = useSharedValue(500);
   const backdropOpacity = useSharedValue(0);
 
   const sheetStyle = useAnimatedStyle(() => ({
@@ -108,30 +122,32 @@ export default function RulesScreen() {
 
   const openSheet = useCallback(() => {
     setSheetOpen(true);
-    sheetTranslateY.value = withSpring(0, { damping: 20, stiffness: 200 });
-    backdropOpacity.value = withTiming(1, { duration: 180 });
+    setSelectedIcon(HABIT_ICONS[0]);
+    sheetTranslateY.value = withTiming(0, { duration: 300 });
+    backdropOpacity.value = withTiming(1, { duration: 250 });
   }, [sheetTranslateY, backdropOpacity]);
 
   const closeSheet = useCallback(() => {
-    sheetTranslateY.value = withTiming(400, { duration: 220 });
-    backdropOpacity.value = withTiming(0, { duration: 200 });
+    sheetTranslateY.value = withTiming(500, { duration: 260 });
+    backdropOpacity.value = withTiming(0, { duration: 220 });
     setTimeout(() => {
       setSheetOpen(false);
       setHabitInput('');
-    }, 230);
+    }, 270);
   }, [sheetTranslateY, backdropOpacity]);
 
   const addHabit = useCallback(() => {
     const text = habitInput.trim();
     if (!text) return;
-    if (!state.customHabits.includes(text)) {
-      update('customHabits', [...state.customHabits, text]);
+    const encoded = `${selectedIcon}::${text}`;
+    if (!state.customHabits.some(h => habitLabel(h) === text)) {
+      update('customHabits', [...state.customHabits, encoded]);
     }
     closeSheet();
-  }, [habitInput, state.customHabits, update, closeSheet]);
+  }, [habitInput, selectedIcon, state.customHabits, update, closeSheet]);
 
-  const removeHabit = useCallback((text: string) => {
-    update('customHabits', state.customHabits.filter(h => h !== text));
+  const removeHabit = useCallback((raw: string) => {
+    update('customHabits', state.customHabits.filter(h => h !== raw));
   }, [state.customHabits, update]);
 
   if (!challenge) {
@@ -262,7 +278,7 @@ export default function RulesScreen() {
               paddingHorizontal: 16,
               paddingVertical: 6,
             }}>
-              {state.customHabits.map((h, i) => (
+              {state.customHabits.map((h) => (
                 <Animated.View
                   key={h}
                   entering={FadeInDown.duration(260)}>
@@ -285,7 +301,7 @@ export default function RulesScreen() {
                         color: T.text,
                         lineHeight: 22,
                       }}>
-                        star
+                        {habitIcon(h)}
                       </Text>
                     </View>
                     <Text style={{
@@ -295,7 +311,7 @@ export default function RulesScreen() {
                       color: T.text,
                       letterSpacing: -0.2,
                     }}>
-                      {h}
+                      {habitLabel(h)}
                     </Text>
                     <Pressable onPress={() => removeHabit(h)} hitSlop={12}>
                       <Text style={{
@@ -370,7 +386,7 @@ export default function RulesScreen() {
       <Modal visible={sheetOpen} transparent animationType='none' onRequestClose={closeSheet}>
         <View style={{ flex: 1 }}>
           <Animated.View
-            style={[StyleSheet.absoluteFillObject, backdropStyle, { backgroundColor: 'rgba(0,0,0,0.45)' }]}
+            style={[StyleSheet.absoluteFillObject, backdropStyle, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
             pointerEvents='none'
           />
           <Pressable style={StyleSheet.absoluteFillObject} onPress={closeSheet} />
@@ -386,36 +402,104 @@ export default function RulesScreen() {
                   backgroundColor: T.background,
                   borderTopLeftRadius: 24,
                   borderTopRightRadius: 24,
-                  paddingHorizontal: 24,
+                  paddingHorizontal: 20,
                   paddingTop: 12,
-                  paddingBottom: 12,
+                  paddingBottom: 16,
                   borderTopWidth: StyleSheet.hairlineWidth,
                   borderColor: T.cardBorder,
                 }}
               >
+                {/* Handle */}
                 <View style={{
                   width: 36, height: 4, borderRadius: 2,
                   backgroundColor: T.cardBorder,
-                  alignSelf: 'center', marginBottom: 20,
+                  alignSelf: 'center', marginBottom: 16,
                 }} />
 
-                <Text style={{
-                  fontFamily: Font.displayBold,
-                  fontSize: 22,
-                  color: T.text,
-                  letterSpacing: -0.6,
-                  marginBottom: 16,
-                }}>
-                  Add a habit
-                </Text>
+                {/* Header row */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                  <Text style={{
+                    fontFamily: Font.displayBold,
+                    fontSize: 20,
+                    color: T.text,
+                    letterSpacing: -0.5,
+                  }}>
+                    Add a habit
+                  </Text>
+                  <Pressable
+                    onPress={closeSheet}
+                    hitSlop={12}
+                    style={({ pressed }) => ({
+                      width: 32, height: 32, borderRadius: 16,
+                      backgroundColor: T.hairline,
+                      justifyContent: 'center', alignItems: 'center',
+                      opacity: pressed ? 0.5 : 1,
+                    })}>
+                    <Text style={{
+                      fontFamily: Font.icon, fontSize: 16,
+                      color: T.textDim, lineHeight: 18,
+                      includeFontPadding: false,
+                    }}>
+                      close
+                    </Text>
+                  </Pressable>
+                </View>
 
+                {/* Icon picker */}
+                <Text style={{
+                  fontFamily: Font.bodyMed, fontSize: 11,
+                  letterSpacing: 1.8, color: T.textSubtle,
+                  marginBottom: 10,
+                }}>
+                  CHOOSE AN ICON
+                </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 8, paddingBottom: 4 }}
+                  style={{ marginBottom: 16 }}
+                >
+                  {HABIT_ICONS.map(icon => {
+                    const active = selectedIcon === icon;
+                    return (
+                      <Pressable
+                        key={icon}
+                        onPress={() => setSelectedIcon(icon)}
+                        style={({ pressed }) => ({
+                          width: 48, height: 48, borderRadius: 14,
+                          backgroundColor: active ? T.invertBg : T.card,
+                          borderWidth: StyleSheet.hairlineWidth,
+                          borderColor: active ? 'transparent' : T.cardBorder,
+                          justifyContent: 'center', alignItems: 'center',
+                          opacity: pressed ? 0.6 : 1,
+                        })}>
+                        <Text style={{
+                          fontFamily: Font.icon, fontSize: 22,
+                          color: active ? T.invertText : T.textDim,
+                          lineHeight: 24, includeFontPadding: false,
+                        }}>
+                          {icon}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* Name input */}
+                <Text style={{
+                  fontFamily: Font.bodyMed, fontSize: 11,
+                  letterSpacing: 1.8, color: T.textSubtle,
+                  marginBottom: 10,
+                }}>
+                  HABIT NAME
+                </Text>
                 <TextInput
                   autoFocus
                   value={habitInput}
                   onChangeText={setHabitInput}
                   onSubmitEditing={addHabit}
                   returnKeyType='done'
-                  placeholder='e.g. Cold shower in the morning'
+                  placeholder='e.g. Cold shower'
                   placeholderTextColor={T.textSubtle}
                   style={{
                     backgroundColor: T.card,
@@ -441,7 +525,7 @@ export default function RulesScreen() {
                     borderRadius: Radius.pill,
                     justifyContent: 'center',
                     alignItems: 'center',
-                    opacity: !habitInput.trim() ? 0.35 : pressed ? 0.7 : 1,
+                    opacity: !habitInput.trim() ? 0.3 : pressed ? 0.7 : 1,
                   })}>
                   <Text style={{
                     fontFamily: Font.displaySemi,
@@ -449,7 +533,7 @@ export default function RulesScreen() {
                     color: T.invertText,
                     letterSpacing: -0.2,
                   }}>
-                    Add
+                    Add habit
                   </Text>
                 </Pressable>
               </SafeAreaView>

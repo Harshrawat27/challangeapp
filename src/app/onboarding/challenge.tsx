@@ -14,7 +14,6 @@ import { router } from 'expo-router';
 import Animated, {
   FadeIn,
   FadeInDown,
-  Layout,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -169,17 +168,21 @@ export default function ChallengeScreen() {
     }, 230);
   }, [sheetTranslateY, backdropOpacity]);
 
+  const habitLabel = (raw: string) => { const s = raw.indexOf('::'); return s !== -1 ? raw.slice(s + 2) : raw; };
+  const habitIcon = (raw: string) => { const s = raw.indexOf('::'); return s !== -1 ? raw.slice(0, s) : 'task_alt'; };
+
   const addHabit = useCallback(() => {
     const text = habitInput.trim();
     if (!text) return;
-    if (!state.customHabits.includes(text)) {
-      update('customHabits', [...state.customHabits, text]);
+    const encoded = `star::${text}`;
+    if (!state.customHabits.some(h => habitLabel(h) === text)) {
+      update('customHabits', [...state.customHabits, encoded]);
     }
     closeSheet();
   }, [habitInput, state.customHabits, update, closeSheet]);
 
-  const removeHabit = useCallback((text: string) => {
-    update('customHabits', state.customHabits.filter(h => h !== text));
+  const removeHabit = useCallback((raw: string) => {
+    update('customHabits', state.customHabits.filter(h => h !== raw));
   }, [state.customHabits, update]);
 
   const handleSelect = (id: typeof CHALLENGES[number]['id']) => {
@@ -300,7 +303,7 @@ export default function ChallengeScreen() {
 
                 {/* Custom habits */}
                 {state.customHabits.map(h => (
-                  <Animated.View key={h} layout={Layout.springify().damping(18)}>
+                  <Animated.View key={h} entering={FadeInDown.duration(250)}>
                     <View style={{
                       flexDirection: 'row',
                       alignItems: 'center',
@@ -311,12 +314,21 @@ export default function ChallengeScreen() {
                       paddingVertical: 8,
                     }}>
                       <Text style={{
+                        fontFamily: Font.icon,
+                        fontSize: 14,
+                        color: T.invertText,
+                        lineHeight: 16,
+                        includeFontPadding: false,
+                      }}>
+                        {habitIcon(h)}
+                      </Text>
+                      <Text style={{
                         fontFamily: Font.bodyMed,
                         fontSize: 13,
                         color: T.invertText,
                         letterSpacing: -0.1,
                       }}>
-                        {h}
+                        {habitLabel(h)}
                       </Text>
                       <Pressable onPress={() => removeHabit(h)} hitSlop={8}>
                         <Text style={{

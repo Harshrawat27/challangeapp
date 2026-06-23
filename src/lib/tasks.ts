@@ -18,11 +18,11 @@ export function buildTasks(
 ): ChallengeTask[] {
   const ch = getChallenge((challengeId as ChallengeId | undefined) ?? null);
   const base = ch?.tasks ?? [];
-  const custom: ChallengeTask[] = (customHabits ?? []).map((label, i) => ({
-    id: `custom-${i}-${label}`,
-    icon: 'task_alt',
-    label,
-    meta: 'Custom',
-  }));
+  const custom: ChallengeTask[] = (customHabits ?? []).map((raw, i) => {
+    const sep = raw.indexOf('::');
+    const icon = sep !== -1 ? raw.slice(0, sep) : 'task_alt';
+    const label = sep !== -1 ? raw.slice(sep + 2) : raw;
+    return { id: `custom-${i}-${label}`, icon, label, meta: 'Custom' };
+  });
   return [...base, ...custom];
 }
