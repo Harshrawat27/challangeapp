@@ -95,7 +95,7 @@ function ChallengeCard({
           flexDirection: 'row',
           alignItems: 'center',
           gap: 8,
-          backgroundColor: selected ? 'rgba(255,255,255,0.12)' : T.hairline,
+          backgroundColor: selected ? (isDark ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)') : T.hairline,
           paddingHorizontal: 10,
           paddingVertical: 4,
           borderRadius: Radius.pill,
@@ -116,14 +116,14 @@ function ChallengeCard({
           T={selected ? {
             ...T,
             text: T.invertText,
-            hairline: 'rgba(255,255,255,0.18)',
-            textSubtle: 'rgba(255,255,255,0.45)',
+            hairline: isDark ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.18)',
+            textSubtle: isDark ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.45)',
           } : T}
         />
         <Text style={{
           fontFamily: Font.bodyReg,
           fontSize: 13,
-          color: selected ? 'rgba(255,255,255,0.65)' : T.textDim,
+          color: selected ? (isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.65)') : T.textDim,
           letterSpacing: -0.05,
         }}>
           {challenge.summary}

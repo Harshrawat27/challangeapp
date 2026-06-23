@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -13,7 +13,7 @@ import { router } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { OnboardingFrame } from '@/components/onboarding-frame';
-import { Colors, Font, MaxContentWidth, type Theme } from '@/constants/theme';
+import { Colors, Font, MaxContentWidth, Radius, type Theme } from '@/constants/theme';
 import { useOnboarding } from '@/lib/onboarding-store';
 import { getChallenge } from '@/constants/challenges';
 
@@ -38,7 +38,7 @@ function LengthSlider({
   isDark: boolean;
 }) {
   const { width: windowW } = useWindowDimensions();
-  const containerW = Math.min(windowW, MaxContentWidth) - 48; // matches horizontal padding
+  const containerW = Math.min(windowW, MaxContentWidth) - 48;
   const TICK_W = 2;
   const TICK_GAP = 6;
   const SLOT = TICK_W + TICK_GAP;
@@ -48,11 +48,9 @@ function LengthSlider({
   const scrollRef = useRef<ScrollView>(null);
   const lastReported = useRef(value);
 
-  // Initial scroll position
   useEffect(() => {
     const offset = (value - MIN_DAYS) * SLOT;
     scrollRef.current?.scrollTo({ x: offset, animated: false });
-    // intentionally empty dep array — only on mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -69,7 +67,6 @@ function LengthSlider({
     [onChange, SLOT],
   );
 
-  // Compute start + end dates
   const today = useMemo(() => new Date(), []);
   const endDate = useMemo(() => {
     const d = new Date(today);
@@ -79,7 +76,6 @@ function LengthSlider({
 
   return (
     <View style={{ alignItems: 'center', width: '100%' }}>
-      {/* Value pill */}
       <View style={{
         backgroundColor: T.card,
         paddingHorizontal: 20,
@@ -103,9 +99,7 @@ function LengthSlider({
         </Text>
       </View>
 
-      {/* Slider area */}
       <View style={{ width: containerW, height: 56, position: 'relative' }}>
-        {/* Center indicator (the selected tick) */}
         <View
           pointerEvents='none'
           style={{
@@ -168,7 +162,6 @@ function LengthSlider({
         </ScrollView>
       </View>
 
-      {/* Date range */}
       <Text style={{
         marginTop: 16,
         fontFamily: Font.bodyMed,
@@ -236,7 +229,6 @@ export default function CustomizeScreen() {
           </Text>
         </Animated.View>
 
-        {/* Length slider */}
         <Animated.View entering={FadeInDown.delay(260).duration(480)}>
           <LengthSlider
             value={state.challengeLength}
