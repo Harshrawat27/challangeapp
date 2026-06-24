@@ -5,6 +5,7 @@ export type ChallengeTask = {
   icon: string;       // Material Symbols ligature
   label: string;
   meta: string;
+  count?: number;     // required taps per day (undefined/1 = simple toggle)
 };
 
 export type Challenge = {

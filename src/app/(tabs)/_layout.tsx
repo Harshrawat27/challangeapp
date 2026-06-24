@@ -18,8 +18,9 @@ import { useSubscription } from '@/lib/subscription-context';
 // index 0 = closest to FAB, index 1 = furthest
 
 const ACTIONS = [
-  { key: 'picture', label: 'Take Picture', icon: 'photo_camera' },
-  { key: 'scan',    label: 'Scan Meal',    icon: 'document_scanner' },
+  { key: 'picture', label: 'Take Picture', icon: 'photo_camera'       },
+  { key: 'scan',    label: 'Scan Meal',    icon: 'document_scanner'   },
+  { key: 'habit',   label: 'Add Habit',    icon: 'add_task'           },
 ] as const;
 
 const ITEM_H = 66; // visual height of each action row including gap
@@ -234,6 +235,8 @@ export default function TabsLayout() {
                     router.push('/camera');
                   } else if (action.key === 'scan') {
                     router.push('/scan');
+                  } else if (action.key === 'habit') {
+                    router.push('/add-habit');
                   }
                 }}
                 T={T}

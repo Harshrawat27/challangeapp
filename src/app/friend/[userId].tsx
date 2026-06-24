@@ -55,11 +55,17 @@ function computeStats(logs: DailyLog[], challengeStart: Date, today: Date) {
   let expected = 0;
   let streak = 0;
 
+  const isTaskDone = (log: DailyLog, taskId: string): boolean => {
+    const required = log.taskCounts?.[taskId] ?? 1;
+    const taps = log.completions[taskId];
+    return Array.isArray(taps) ? taps.length >= required : false;
+  };
+
   for (let i = 0; i < pastDays; i++) {
     const d = addDays(challengeStart, i);
     const log = byDate.get(localDateString(d));
     if (log) {
-      done += Object.keys(log.completions).length;
+      done += log.allTaskIds.filter(id => isTaskDone(log, id)).length;
       expected += log.allTaskIds.length;
     }
   }
@@ -70,7 +76,7 @@ function computeStats(logs: DailyLog[], challengeStart: Date, today: Date) {
     if (
       log &&
       log.allTaskIds.length > 0 &&
-      Object.keys(log.completions).length === log.allTaskIds.length
+      log.allTaskIds.every(id => isTaskDone(log, id))
     ) {
       streak++;
     } else {
@@ -311,7 +317,13 @@ export default function FriendDetailScreen() {
                 const log = logByDate.get(cellDateStr);
                 const isToday = +cellDate === +today;
                 const isFuture = +cellDate > +today;
-                const completedCount = log ? Object.keys(log.completions).length : 0;
+                const completedCount = log
+                  ? log.allTaskIds.filter(id => {
+                      const required = log.taskCounts?.[id] ?? 1;
+                      const taps = log.completions[id];
+                      return Array.isArray(taps) && taps.length >= required;
+                    }).length
+                  : 0;
                 const exp = log?.allTaskIds.length ?? tasks.length;
                 const ratio = exp > 0 ? completedCount / exp : 0;
 
@@ -391,7 +403,9 @@ export default function FriendDetailScreen() {
                 </Text>
               </View>
             ) : tasks.map((task, i) => {
-              const done = todayLog ? task.id in todayLog.completions : false;
+              const required = todayLog?.taskCounts?.[task.id] ?? 1;
+              const taps = todayLog?.completions[task.id];
+              const done = Array.isArray(taps) && taps.length >= required;
               const isLast = i === tasks.length - 1;
               return (
                 <View

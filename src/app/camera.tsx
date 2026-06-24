@@ -264,7 +264,11 @@ export default function CameraScreen() {
   const log = useDay(today);
   const prefs = useMyPreferences();
   const tasks = buildTasks(prefs?.challenge, prefs?.customHabits);
-  const completedTasks = tasks.filter(t => !!log?.completions[t.id]);
+  const completedTasks = tasks.filter(t => {
+    const taps = log?.completions[t.id];
+    const required = log?.taskCounts?.[t.id] ?? 1;
+    return Array.isArray(taps) && taps.length >= required;
+  });
   const challenge = getChallenge((prefs?.challenge as ChallengeId | undefined) ?? null);
   const dayNumber = log?.challengeDay ?? 1;
 

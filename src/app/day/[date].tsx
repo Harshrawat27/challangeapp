@@ -48,6 +48,8 @@ function TaskRow({
   meta,
   icon,
   doneAt,           // ISO timestamp or null
+  tapCount,
+  required,
   isLast,
   T,
 }: {
@@ -56,6 +58,8 @@ function TaskRow({
   meta: string;
   icon: string;
   doneAt: string | null;
+  tapCount: number;
+  required: number;
   isLast: boolean;
   T: Theme;
 }) {
@@ -124,7 +128,13 @@ function TaskRow({
             marginTop: 2,
             letterSpacing: -0.05,
           }}>
-          {done ? `Completed at ${formatTime(doneAt!)}` : meta + ' · missed'}
+          {done
+            ? required > 1
+              ? `${required}/${required} · ${formatTime(doneAt!)}`
+              : `Completed at ${formatTime(doneAt!)}`
+            : required > 1
+              ? `${tapCount}/${required} · missed`
+              : meta + ' · missed'}
         </Text>
       </View>
 
@@ -237,12 +247,18 @@ export default function DayDetailScreen() {
     if (!log) return [];
     return log.allTaskIds.map((id) => {
       const def = lookup.get(id);
+      const required = log.taskCounts?.[id] ?? 1;
+      const taps = log.completions[id] ?? [];
+      const tapCount = Array.isArray(taps) ? taps.length : 0;
+      const isDone = tapCount >= required;
       return {
         id,
         label: def?.label ?? 'Task',
         meta: def?.meta ?? '',
         icon: def?.icon ?? 'task_alt',
-        doneAt: log.completions[id] ?? null,
+        doneAt: isDone ? (taps[taps.length - 1] ?? null) : null,
+        tapCount,
+        required,
       };
     });
   }, [log, lookup]);
@@ -452,6 +468,8 @@ export default function DayDetailScreen() {
                   meta={r.meta}
                   icon={r.icon}
                   doneAt={r.doneAt}
+                  tapCount={r.tapCount}
+                  required={r.required}
                   isLast={i === rows.length - 1}
                   T={T}
                 />

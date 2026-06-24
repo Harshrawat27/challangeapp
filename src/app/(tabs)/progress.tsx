@@ -52,6 +52,7 @@ type ChallengeStats = {
   expectedTotal: number;
   completionPct: number;
   streak: number;
+  bestStreak: number;
   perTask: Map<string, { done: number; expected: number }>;
 };
 
@@ -69,11 +70,18 @@ function computeStats(
   let fullyCompleted = 0;
   const perTask = new Map<string, { done: number; expected: number }>();
 
+  // Helper: is a task fully completed in a log?
+  const isTaskDone = (log: DailyLog, taskId: string): boolean => {
+    const required = log.taskCounts?.[taskId] ?? 1;
+    const taps = log.completions[taskId];
+    return Array.isArray(taps) ? taps.length >= required : false;
+  };
+
   for (let i = 0; i < pastDays; i++) {
     const d = addDays(challengeStart, i);
     const log = byDate.get(localDateString(d));
     if (log) {
-      const completedCount = Object.keys(log.completions).length;
+      const completedCount = log.allTaskIds.filter(id => isTaskDone(log, id)).length;
       completedTotal += completedCount;
       expectedTotal += log.allTaskIds.length;
       if (log.allTaskIds.length > 0 && completedCount === log.allTaskIds.length) {
@@ -82,7 +90,7 @@ function computeStats(
       for (const id of log.allTaskIds) {
         const row = perTask.get(id) ?? { done: 0, expected: 0 };
         row.expected++;
-        if (id in log.completions) row.done++;
+        if (isTaskDone(log, id)) row.done++;
         perTask.set(id, row);
       }
     } else {
@@ -91,7 +99,7 @@ function computeStats(
     }
   }
 
-  // Streak: walk backwards from yesterday.
+  // Current streak: walk backwards from yesterday.
   let streak = 0;
   for (let i = pastDays - 1; i >= 0; i--) {
     const d = addDays(challengeStart, i);
@@ -99,11 +107,29 @@ function computeStats(
     if (
       log &&
       log.allTaskIds.length > 0 &&
-      Object.keys(log.completions).length === log.allTaskIds.length
+      log.allTaskIds.every(id => isTaskDone(log, id))
     ) {
       streak++;
     } else {
       break;
+    }
+  }
+
+  // Best streak: walk forward through all past days.
+  let bestStreak = 0;
+  let runningStreak = 0;
+  for (let i = 0; i < pastDays; i++) {
+    const d = addDays(challengeStart, i);
+    const log = byDate.get(localDateString(d));
+    if (
+      log &&
+      log.allTaskIds.length > 0 &&
+      log.allTaskIds.every(id => isTaskDone(log, id))
+    ) {
+      runningStreak++;
+      if (runningStreak > bestStreak) bestStreak = runningStreak;
+    } else {
+      runningStreak = 0;
     }
   }
 
@@ -116,6 +142,7 @@ function computeStats(
     expectedTotal,
     completionPct,
     streak,
+    bestStreak,
     perTask,
   };
 }
@@ -307,7 +334,7 @@ export default function ProgressScreen() {
               <StatTile
                 label='Streak'
                 value={`${stats.streak}d`}
-                hint={stats.streak === 1 ? 'day' : 'consecutive'}
+                hint={`Best: ${stats.bestStreak}d`}
                 T={T}
               />
               <StatTile
@@ -336,7 +363,13 @@ export default function ProgressScreen() {
                   const log = logByDate.get(cellDateStr);
                   const isToday = +cellDate === +today;
                   const isFuture = +cellDate > +today;
-                  const completedCount = log ? Object.keys(log.completions).length : 0;
+                  const completedCount = log
+                    ? log.allTaskIds.filter(id => {
+                        const required = log.taskCounts?.[id] ?? 1;
+                        const taps = log.completions[id];
+                        return Array.isArray(taps) && taps.length >= required;
+                      }).length
+                    : 0;
                   const expected = log?.allTaskIds.length ?? currentTasks.length;
                   const ratio = expected > 0 ? completedCount / expected : 0;
 
@@ -585,7 +618,11 @@ export default function ProgressScreen() {
               }}>
                 {recentDays.map((log, i) => {
                   const dayDate = parseDate(log.date);
-                  const completed = Object.keys(log.completions).length;
+                  const completed = log.allTaskIds.filter(id => {
+                    const required = log.taskCounts?.[id] ?? 1;
+                    const taps = log.completions[id];
+                    return Array.isArray(taps) && taps.length >= required;
+                  }).length;
                   const expected = log.allTaskIds.length;
                   const isComplete = expected > 0 && completed === expected;
                   const dateStr = dayDate.toLocaleDateString(undefined, {

@@ -26,6 +26,7 @@ import { OnboardingFrame } from '@/components/onboarding-frame';
 import { Colors, Font, Radius, type Theme } from '@/constants/theme';
 import { getChallenge, type ChallengeTask } from '@/constants/challenges';
 import { useOnboarding } from '@/lib/onboarding-store';
+import { encodeCustomHabit, parseCustomHabit } from '@/lib/tasks';
 
 function RuleRow({
   index,
@@ -103,12 +104,10 @@ export default function RulesScreen() {
     'savings', 'brush', 'eco', 'thermostat', 'task_alt',
   ];
 
-  const habitLabel = (raw: string) => { const s = raw.indexOf('::'); return s !== -1 ? raw.slice(s + 2) : raw; };
-  const habitIcon  = (raw: string) => { const s = raw.indexOf('::'); return s !== -1 ? raw.slice(0, s) : 'task_alt'; };
-
   const [sheetOpen, setSheetOpen] = useState(false);
   const [habitInput, setHabitInput] = useState('');
   const [selectedIcon, setSelectedIcon] = useState(HABIT_ICONS[0]);
+  const [selectedCount, setSelectedCount] = useState(1);
 
   const sheetTranslateY = useSharedValue(500);
   const backdropOpacity = useSharedValue(0);
@@ -123,6 +122,7 @@ export default function RulesScreen() {
   const openSheet = useCallback(() => {
     setSheetOpen(true);
     setSelectedIcon(HABIT_ICONS[0]);
+    setSelectedCount(1);
     sheetTranslateY.value = withTiming(0, { duration: 300 });
     backdropOpacity.value = withTiming(1, { duration: 250 });
   }, [sheetTranslateY, backdropOpacity]);
@@ -139,12 +139,12 @@ export default function RulesScreen() {
   const addHabit = useCallback(() => {
     const text = habitInput.trim();
     if (!text) return;
-    const encoded = `${selectedIcon}::${text}`;
-    if (!state.customHabits.some(h => habitLabel(h) === text)) {
+    const encoded = encodeCustomHabit('', '', selectedCount, selectedIcon, text);
+    if (!state.customHabits.some(h => parseCustomHabit(h).label === text)) {
       update('customHabits', [...state.customHabits, encoded]);
     }
     closeSheet();
-  }, [habitInput, selectedIcon, state.customHabits, update, closeSheet]);
+  }, [habitInput, selectedIcon, selectedCount, state.customHabits, update, closeSheet]);
 
   const removeHabit = useCallback((raw: string) => {
     update('customHabits', state.customHabits.filter(h => h !== raw));
@@ -278,55 +278,69 @@ export default function RulesScreen() {
               paddingHorizontal: 16,
               paddingVertical: 6,
             }}>
-              {state.customHabits.map((h) => (
-                <Animated.View
-                  key={h}
-                  entering={FadeInDown.duration(260)}>
-                  <View style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingVertical: 14,
-                    gap: 14,
-                    borderBottomWidth: StyleSheet.hairlineWidth,
-                    borderBottomColor: T.hairline,
-                  }}>
+              {state.customHabits.map((h) => {
+                const parsed = parseCustomHabit(h);
+                return (
+                  <Animated.View
+                    key={h}
+                    entering={FadeInDown.duration(260)}>
                     <View style={{
-                      width: 42, height: 42, borderRadius: 12,
-                      borderWidth: StyleSheet.hairlineWidth, borderColor: T.cardBorder,
-                      justifyContent: 'center', alignItems: 'center',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: 14,
+                      gap: 14,
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                      borderBottomColor: T.hairline,
                     }}>
-                      <Text style={{
-                        fontFamily: Font.icon,
-                        fontSize: 20,
-                        color: T.text,
-                        lineHeight: 22,
+                      <View style={{
+                        width: 42, height: 42, borderRadius: 12,
+                        borderWidth: StyleSheet.hairlineWidth, borderColor: T.cardBorder,
+                        justifyContent: 'center', alignItems: 'center',
                       }}>
-                        {habitIcon(h)}
-                      </Text>
+                        <Text style={{
+                          fontFamily: Font.icon,
+                          fontSize: 20,
+                          color: T.text,
+                          lineHeight: 22,
+                        }}>
+                          {parsed.icon}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{
+                          fontFamily: Font.displaySemi,
+                          fontSize: 15,
+                          color: T.text,
+                          letterSpacing: -0.2,
+                        }}>
+                          {parsed.label}
+                        </Text>
+                        {parsed.count > 1 && (
+                          <Text style={{
+                            fontFamily: Font.bodyReg,
+                            fontSize: 12,
+                            color: T.textDim,
+                            marginTop: 1,
+                          }}>
+                            {parsed.count}× per day
+                          </Text>
+                        )}
+                      </View>
+                      <Pressable onPress={() => removeHabit(h)} hitSlop={12}>
+                        <Text style={{
+                          fontFamily: Font.icon,
+                          fontSize: 18,
+                          color: T.textSubtle,
+                          lineHeight: 20,
+                          includeFontPadding: false,
+                        }}>
+                          close
+                        </Text>
+                      </Pressable>
                     </View>
-                    <Text style={{
-                      flex: 1,
-                      fontFamily: Font.displaySemi,
-                      fontSize: 15,
-                      color: T.text,
-                      letterSpacing: -0.2,
-                    }}>
-                      {habitLabel(h)}
-                    </Text>
-                    <Pressable onPress={() => removeHabit(h)} hitSlop={12}>
-                      <Text style={{
-                        fontFamily: Font.icon,
-                        fontSize: 18,
-                        color: T.textSubtle,
-                        lineHeight: 20,
-                        includeFontPadding: false,
-                      }}>
-                        close
-                      </Text>
-                    </Pressable>
-                  </View>
-                </Animated.View>
-              ))}
+                  </Animated.View>
+                );
+              })}
 
               {/* Add row */}
               <Pressable
@@ -512,9 +526,48 @@ export default function RulesScreen() {
                     fontSize: 15,
                     color: T.text,
                     letterSpacing: -0.1,
-                    marginBottom: 16,
+                    marginBottom: 20,
                   }}
                 />
+
+                {/* Times per day picker */}
+                <Text style={{
+                  fontFamily: Font.bodyMed, fontSize: 11,
+                  letterSpacing: 1.8, color: T.textSubtle,
+                  marginBottom: 10,
+                }}>
+                  TIMES PER DAY
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+                  {[1, 2, 3, 4, 5].map(n => {
+                    const active = selectedCount === n;
+                    return (
+                      <Pressable
+                        key={n}
+                        onPress={() => setSelectedCount(n)}
+                        style={({ pressed }) => ({
+                          flex: 1,
+                          height: 44,
+                          borderRadius: Radius.md,
+                          backgroundColor: active ? T.invertBg : T.card,
+                          borderWidth: StyleSheet.hairlineWidth,
+                          borderColor: active ? 'transparent' : T.cardBorder,
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          opacity: pressed ? 0.6 : 1,
+                        })}>
+                        <Text style={{
+                          fontFamily: Font.displayBold,
+                          fontSize: 15,
+                          color: active ? T.invertText : T.textDim,
+                          letterSpacing: -0.3,
+                        }}>
+                          {n}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
 
                 <Pressable
                   onPress={addHabit}

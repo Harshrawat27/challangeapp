@@ -21,7 +21,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { authClient } from '@/lib/auth-client';
-import { useCachedDay, useCachedPreferences, useCachedWaterForDay, useMealsForDay, useNoteForDay, useToggleTask } from '@/lib/convex-api';
+import { useCachedDay, useCachedPreferences, useCachedWaterForDay, useMealsForDay, useNoteForDay, useTapTask } from '@/lib/convex-api';
 import { buildTasks, localDateString } from '@/lib/tasks';
 import { DayStrip } from '@/components/day-strip';
 import { type ChallengeTask } from '@/constants/challenges';
@@ -270,6 +270,118 @@ function TaskCard({
   );
 }
 
+// ─── Count Task Card ────────────────────────────────────────────────────────
+
+function CountTaskCard({
+  task,
+  tapCount,
+  index,
+  onAdd,
+  onRemove,
+  ink,
+  dim,
+  cardBg,
+  cardBorder,
+  invertBg,
+  invertText,
+}: {
+  task: TaskDef;
+  tapCount: number;
+  index: number;
+  onAdd: () => void;
+  onRemove: () => void;
+  ink: string;
+  dim: string;
+  cardBg: string;
+  cardBorder: string;
+  invertBg: string;
+  invertText: string;
+}) {
+  const required = task.count ?? 1;
+  const done = tapCount >= required;
+
+  return (
+    <Animated.View entering={FadeInDown.delay(520 + index * 70).duration(420)}>
+      <View style={{
+        backgroundColor: cardBg,
+        borderRadius: Radius.lg,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: cardBorder,
+        padding: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+        marginBottom: 10,
+      }}>
+        {/* Icon tile */}
+        <View style={{
+          width: 46, height: 46, borderRadius: 12,
+          borderWidth: StyleSheet.hairlineWidth, borderColor: cardBorder,
+          justifyContent: 'center', alignItems: 'center',
+          opacity: done ? 0.45 : 1,
+        }}>
+          <Icon name={task.icon} size={22} color={ink} />
+        </View>
+
+        {/* Label + meta */}
+        <View style={{ flex: 1, gap: 3, opacity: done ? 0.45 : 1 }}>
+          <Text style={{
+            fontFamily: Font.displaySemi, fontSize: 16,
+            color: ink, letterSpacing: -0.2,
+          }}>
+            {task.label}
+          </Text>
+          <Text style={{
+            fontFamily: Font.bodyReg, fontSize: 12.5,
+            color: dim, letterSpacing: 0.1,
+          }}>
+            {task.meta}
+          </Text>
+        </View>
+
+        {/* Counter: − X/N + */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Pressable
+            onPress={onRemove}
+            disabled={tapCount <= 0}
+            hitSlop={10}
+            style={({ pressed }) => ({
+              width: 32, height: 32, borderRadius: 8,
+              borderWidth: StyleSheet.hairlineWidth, borderColor: cardBorder,
+              justifyContent: 'center', alignItems: 'center',
+              opacity: tapCount <= 0 ? 0.25 : pressed ? 0.5 : 1,
+            })}>
+            <Icon name="remove" size={16} color={ink} />
+          </Pressable>
+
+          <Text style={{
+            fontFamily: Font.displayBold, fontSize: 14,
+            color: done ? invertBg : ink,
+            minWidth: 38, textAlign: 'center', letterSpacing: -0.3,
+          }}>
+            {tapCount}/{required}
+          </Text>
+
+          <Pressable
+            onPress={onAdd}
+            disabled={done}
+            hitSlop={10}
+            style={({ pressed }) => ({
+              width: 32, height: 32, borderRadius: 8,
+              backgroundColor: done ? 'transparent' : invertBg,
+              borderWidth: done ? StyleSheet.hairlineWidth : 0,
+              borderColor: cardBorder,
+              justifyContent: 'center', alignItems: 'center',
+              opacity: done ? 0.25 : pressed ? 0.7 : 1,
+            })}>
+            <Icon name="add" size={16} color={done ? ink : invertText} />
+          </Pressable>
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
 // ─── Water Task Card ────────────────────────────────────────────────────────
 
 function WaterTaskCard({
@@ -454,7 +566,7 @@ export default function Home() {
     [waterLogs],
   );
   const todayNote = useNoteForDay(todayDateStr);
-  const toggleTaskMutation = useToggleTask();
+  const tapTaskMutation = useTapTask();
 
   const currentDay = Math.max(
     1,
@@ -469,43 +581,99 @@ export default function Home() {
     return n.split(/\s+/)[0];
   }, [prefs?.name, session?.user?.name]);
 
-  // `done` is derived from the persisted log. Optimistic state is layered on
-  // top so taps feel instant even while the mutation is in flight.
-  const [optimistic, setOptimistic] = useState<{ id: string; checked: boolean } | null>(null);
-  const serverDone = useMemo(
-    () => new Set(todayLog ? Object.keys(todayLog.completions) : []),
-    [todayLog],
-  );
-  const done = useMemo(() => {
-    if (!optimistic) return serverDone;
-    const n = new Set(serverDone);
-    optimistic.checked ? n.add(optimistic.id) : n.delete(optimistic.id);
-    return n;
-  }, [serverDone, optimistic]);
+  // Tap counts from server log. completions[taskId] is an array of timestamps.
+  const serverTapCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    if (todayLog) {
+      for (const [id, taps] of Object.entries(todayLog.completions)) {
+        m.set(id, Array.isArray(taps) ? taps.length : 0);
+      }
+    }
+    return m;
+  }, [todayLog]);
 
-  // Drop optimistic state once the server result reflects it.
+  // Optimistic delta: tracks expected count after an in-flight mutation.
+  const [optimisticDelta, setOptimisticDelta] = useState<{
+    id: string;
+    delta: number;
+    expectedCount: number;
+  } | null>(null);
+
+  const tapCounts = useMemo(() => {
+    if (!optimisticDelta) return serverTapCounts;
+    const m = new Map(serverTapCounts);
+    m.set(optimisticDelta.id, Math.max(0, (m.get(optimisticDelta.id) ?? 0) + optimisticDelta.delta));
+    return m;
+  }, [serverTapCounts, optimisticDelta]);
+
+  // Drop optimistic once the server reflects the expected count.
   useEffect(() => {
-    if (!optimistic) return;
-    const reflected = serverDone.has(optimistic.id) === optimistic.checked;
-    if (reflected) setOptimistic(null);
-  }, [optimistic, serverDone]);
+    if (!optimisticDelta) return;
+    const serverCount = serverTapCounts.get(optimisticDelta.id) ?? 0;
+    if (serverCount === optimisticDelta.expectedCount) setOptimisticDelta(null);
+  }, [optimisticDelta, serverTapCounts]);
+
+  const taskCounts = useMemo(() => {
+    const rec: Record<string, number> = {};
+    for (const t of TASKS) rec[t.id] = t.count ?? 1;
+    return rec;
+  }, [TASKS]);
 
   const [selectedIdx, setSelectedIdx] = useState(todayIdx);
+
+  // Toggle for count=1 tasks (checkbox behaviour).
   const toggle = useCallback(
     (id: string) => {
-      const willBeChecked = !done.has(id);
-      setOptimistic({ id, checked: willBeChecked });
-      toggleTaskMutation({
+      const current = tapCounts.get(id) ?? 0;
+      const action: 'add' | 'remove' = current >= 1 ? 'remove' : 'add';
+      const expectedCount = action === 'add' ? 1 : 0;
+      setOptimisticDelta({ id, delta: action === 'add' ? 1 : -1, expectedCount });
+      tapTaskMutation({
         date: todayDateStr,
         taskId: id,
         allTaskIds: TASKS.map(t => t.id),
+        taskCounts,
         todayLocal: todayDateStr,
-      }).catch(() => {
-        // Rollback optimistic state on failure.
-        setOptimistic(null);
-      });
+        action,
+      }).catch(() => setOptimisticDelta(null));
     },
-    [done, todayDateStr, TASKS, toggleTaskMutation],
+    [tapCounts, todayDateStr, TASKS, taskCounts, tapTaskMutation],
+  );
+
+  // Add/remove one tap for count>1 tasks.
+  const tapAdd = useCallback(
+    (id: string) => {
+      const current = tapCounts.get(id) ?? 0;
+      const expectedCount = current + 1;
+      setOptimisticDelta({ id, delta: 1, expectedCount });
+      tapTaskMutation({
+        date: todayDateStr,
+        taskId: id,
+        allTaskIds: TASKS.map(t => t.id),
+        taskCounts,
+        todayLocal: todayDateStr,
+        action: 'add',
+      }).catch(() => setOptimisticDelta(null));
+    },
+    [tapCounts, todayDateStr, TASKS, taskCounts, tapTaskMutation],
+  );
+
+  const tapRemove = useCallback(
+    (id: string) => {
+      const current = tapCounts.get(id) ?? 0;
+      if (current <= 0) return;
+      const expectedCount = current - 1;
+      setOptimisticDelta({ id, delta: -1, expectedCount });
+      tapTaskMutation({
+        date: todayDateStr,
+        taskId: id,
+        allTaskIds: TASKS.map(t => t.id),
+        taskCounts,
+        todayLocal: todayDateStr,
+        action: 'remove',
+      }).catch(() => setOptimisticDelta(null));
+    },
+    [tapCounts, todayDateStr, TASKS, taskCounts, tapTaskMutation],
   );
 
   // Keep the day-strip selection synced to "today" once prefs load and we know
@@ -525,14 +693,16 @@ export default function Home() {
   const hasWaterTask = useMemo(() => TASKS.some(t => t.id === 'water'), [TASKS]);
   const waterDone = hasWaterTask && waterTotal >= waterGoal;
   const doneCount = useMemo(() => {
-    let count = done.size;
-    if (hasWaterTask) {
-      // Replace whatever daily_logs says about water with the live total.
-      if (waterDone && !done.has('water')) count++;
-      if (!waterDone && done.has('water')) count--;
+    let count = 0;
+    for (const t of TASKS) {
+      if (t.id === 'water') {
+        if (waterDone) count++;
+      } else {
+        if ((tapCounts.get(t.id) ?? 0) >= (t.count ?? 1)) count++;
+      }
     }
     return count;
-  }, [done, hasWaterTask, waterDone]);
+  }, [TASKS, tapCounts, waterDone]);
   const pct = useMemo(
     () => {
       const taskTotal = TASKS.length || 1;
@@ -822,12 +992,30 @@ export default function Home() {
                   />
                 );
               }
+              if ((t.count ?? 1) > 1) {
+                return (
+                  <CountTaskCard
+                    key={t.id}
+                    task={t}
+                    index={i}
+                    tapCount={tapCounts.get(t.id) ?? 0}
+                    onAdd={() => tapAdd(t.id)}
+                    onRemove={() => tapRemove(t.id)}
+                    ink={T.text}
+                    dim={T.textDim}
+                    cardBg={T.card}
+                    cardBorder={T.cardBorder}
+                    invertBg={T.invertBg}
+                    invertText={T.invertText}
+                  />
+                );
+              }
               return (
                 <TaskCard
                   key={t.id}
                   task={t}
                   index={i}
-                  done={done.has(t.id)}
+                  done={(tapCounts.get(t.id) ?? 0) >= 1}
                   onToggle={() => toggle(t.id)}
                   ink={T.text}
                   dim={T.textDim}

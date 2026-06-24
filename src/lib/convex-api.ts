@@ -174,17 +174,25 @@ export type DailyLog = {
   _id: string;
   _creationTime: number;
   userId: string;
-  date: string;                         // YYYY-MM-DD
+  date: string;                                    // YYYY-MM-DD
   challengeDay: number;
   allTaskIds: string[];
-  completions: Record<string, string>;  // taskId → ISO timestamp of latest check
+  taskCounts?: Record<string, number>;             // taskId → required taps (1 = toggle)
+  completions: Record<string, string[]>;           // taskId → array of tap timestamps
 };
 
-const dailyLogsToggle = makeFunctionReference<
+const dailyLogsTap = makeFunctionReference<
   'mutation',
-  { date: string; taskId: string; allTaskIds: string[]; todayLocal: string },
+  {
+    date: string;
+    taskId: string;
+    allTaskIds: string[];
+    taskCounts?: Record<string, number>;
+    todayLocal: string;
+    action: 'add' | 'remove';
+  },
   string
->('dailyLogs:toggleTask');
+>('dailyLogs:tapTask');
 
 const dailyLogsGetDay = makeFunctionReference<
   'query',
@@ -198,9 +206,9 @@ const dailyLogsGetRange = makeFunctionReference<
   DailyLog[]
 >('dailyLogs:getRange');
 
-/** Toggle a single task for the given (user-local) date. Throws if `date` isn't today. */
-export function useToggleTask() {
-  return useMutation(dailyLogsToggle);
+/** Add or remove one tap for a task on today's date. */
+export function useTapTask() {
+  return useMutation(dailyLogsTap);
 }
 
 /** Subscribe to a single day's log. `undefined` = loading, `null` = no row yet. */
@@ -537,6 +545,28 @@ export function useLogWater() {
 
 export function useDeleteWaterEntry() {
   return useMutation(waterDelete);
+}
+
+// ─── custom habits (mid-challenge) ───────────────────────────────────────────
+
+const userPreferencesAddCustomHabit = makeFunctionReference<
+  'mutation',
+  { encoded: string },
+  void
+>('userPreferences:addCustomHabit');
+
+const userPreferencesUpdateCustomHabits = makeFunctionReference<
+  'mutation',
+  { customHabits: string[] },
+  void
+>('userPreferences:updateCustomHabits');
+
+export function useAddCustomHabit() {
+  return useMutation(userPreferencesAddCustomHabit);
+}
+
+export function useUpdateCustomHabits() {
+  return useMutation(userPreferencesUpdateCustomHabits);
 }
 
 // ─── changeChallenge ─────────────────────────────────────────────────────────
