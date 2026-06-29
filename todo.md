@@ -18,4 +18,4 @@ no one else can write in DB for other user. auth check in every API?
 
 > > > when signing in using email password, first going to onboarding screen then coming to home screen. not working nicely??
 
-8. how user can add habits from app also during creating custom habits give option how many times in a day?
+8. how user can add habits from app also during creating custom habits give option how many times in a day? >> done need to check once!
