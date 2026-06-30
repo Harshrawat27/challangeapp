@@ -6,13 +6,31 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_CONVEX_URL": "https://adjoining-shepherd-212.convex.cloud",
+        "EXPO_PUBLIC_AUTH_URL": "https://www.hardpact.com",
+        "EXPO_PUBLIC_RC_IOS_KEY": "appl_UiyEhADovmDDcZPwNSMZNzTeLKS"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_CONVEX_URL": "https://adjoining-shepherd-212.convex.cloud",
+        "EXPO_PUBLIC_AUTH_URL": "https://www.hardpact.com",
+        "EXPO_PUBLIC_RC_IOS_KEY": "appl_UiyEhADovmDDcZPwNSMZNzTeLKS"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "ios": {
+        "simulator": false,
+        "autoIncrement": true
+      },
+      "env": {
+        "EXPO_PUBLIC_CONVEX_URL": "https://adjoining-shepherd-212.convex.cloud",
+        "EXPO_PUBLIC_AUTH_URL": "https://www.hardpact.com",
+        "EXPO_PUBLIC_RC_IOS_KEY": "appl_UiyEhADovmDDcZPwNSMZNzTeLKS"
+      }
     }
   },
   "submit": {

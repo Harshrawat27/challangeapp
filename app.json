@@ -4,10 +4,12 @@
     "slug": "hardpact",
     "version": "1.0.0",
     "orientation": "portrait",
+    "newArchEnabled": true,
     "icon": "./assets/images/icon.png",
     "scheme": "hardpact",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "supportsTablet": false,
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.hardpact.app",
       "infoPlist": {
