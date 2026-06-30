@@ -24,7 +24,7 @@ import { authClient } from '@/lib/auth-client';
 import { useCachedDay, useCachedPreferences, useCachedWaterForDay, useMealsForDay, useNoteForDay, useTapTask } from '@/lib/convex-api';
 import { buildTasks, localDateString } from '@/lib/tasks';
 import { DayStrip } from '@/components/day-strip';
-import { type ChallengeTask } from '@/constants/challenges';
+import { getChallenge, type ChallengeTask } from '@/constants/challenges';
 import { Colors, Font, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 
 // ─── Domain ─────────────────────────────────────────────────────────────────
@@ -835,7 +835,7 @@ export default function Home() {
                   opacity: 0.55,
                   letterSpacing: 1.6,
                 }}>
-                  75 HARD · CHALLENGE
+                  {(getChallenge(prefs?.challenge ?? null)?.name ?? '75 Hard').toUpperCase()} · CHALLENGE
                 </Text>
                 <Text style={{
                   fontFamily: Font.displayBold,

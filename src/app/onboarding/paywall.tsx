@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -15,11 +15,14 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { OnboardingFrame } from '@/components/onboarding-frame';
 import { Colors, Font, Radius, type Theme } from '@/constants/theme';
 import {
+  useCachedPreferences,
   useClaimUsername,
+  useMarkOnboardingComplete,
+  useMyUsername,
   useSavePreferences,
   useSyncSubscriptionStatus,
 } from '@/lib/convex-api';
-import { useOnboarding } from '@/lib/onboarding-store';
+import { clearOnboardingDraft, useOnboarding } from '@/lib/onboarding-store';
 import { RC_ENTITLEMENT, getSubscriptionStatus } from '@/lib/purchases';
 
 type Plan = {
@@ -184,9 +187,58 @@ export default function PaywallScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const { state: onboardingState } = useOnboarding();
+  const prefs = useCachedPreferences();
+  const myUsername = useMyUsername();
   const savePreferences = useSavePreferences();
+  const markOnboardingComplete = useMarkOnboardingComplete();
   const claimUsername = useClaimUsername();
   const syncStatus = useSyncSubscriptionStatus();
+
+  // Save a draft to the DB the first time paywall mounts with real onboarding data
+  // but no prefs row yet. This lets the user close the app here and return directly
+  // to the paywall without losing their data.
+  const draftAttempted = useRef(false);
+  useEffect(() => {
+    if (prefs === undefined) return; // still loading
+    if (prefs !== null) return;      // draft or completed row already in DB
+    if (draftAttempted.current) return;
+    if (!onboardingState.name) return; // nothing collected yet (e.g., empty state after app kill)
+
+    draftAttempted.current = true;
+    const todayLocal = new Date().toLocaleDateString('en-CA');
+
+    const saveDraft = async () => {
+      try {
+        // Claim username so it's reserved even if the user closes before paying.
+        if (onboardingState.username) {
+          await claimUsername({
+            username: onboardingState.username,
+            displayName: onboardingState.username,
+          });
+        }
+        await savePreferences({
+          name: onboardingState.name,
+          challenge: onboardingState.challenge ?? '75-hard',
+          challengeLength: onboardingState.challengeLength,
+          challengeStartDate: todayLocal,
+          customHabits: onboardingState.customHabits,
+          whyMotivations: onboardingState.whyMotivations,
+          pastFailures: onboardingState.pastFailures,
+          seriousness: onboardingState.seriousness,
+          partnerInvited: onboardingState.partnerInvited,
+          reminderTimes: onboardingState.reminderTimes,
+          weightKg: onboardingState.weightKg ?? undefined,
+          waterGoalMl: onboardingState.waterGoalMl,
+          onboardingCompleted: false,
+        });
+      } catch {
+        // Silent — handleStartTrial will retry the full save on purchase if needed.
+        draftAttempted.current = false;
+      }
+    };
+
+    saveDraft();
+  }, [prefs]); // re-check whenever prefs loads
 
   useEffect(() => {
     Purchases.getOfferings()
@@ -205,9 +257,7 @@ export default function PaywallScreen() {
     setSaving(true);
     setError(null);
     try {
-      const { customerInfo } = await Purchases.purchasePackage(
-        selectedPlan.pkg
-      );
+      const { customerInfo } = await Purchases.purchasePackage(selectedPlan.pkg);
       if (!customerInfo.entitlements.active[RC_ENTITLEMENT]) {
         setError('Purchase could not be verified. Please try again.');
         return;
@@ -216,33 +266,56 @@ export default function PaywallScreen() {
       const status = getSubscriptionStatus(customerInfo);
       if (status) syncStatus({ status, source: 'direct' }).catch(() => {});
 
-      if (onboardingState.username) {
-        try {
-          await claimUsername({
-            username: onboardingState.username,
-            displayName: onboardingState.username,
-          });
-        } catch {
-          setSaving(false);
-          router.replace('/onboarding/username');
-          return;
-        }
-      }
       const todayLocal = new Date().toLocaleDateString('en-CA');
-      await savePreferences({
-        name: onboardingState.name,
-        challenge: onboardingState.challenge ?? '75-hard',
-        challengeLength: onboardingState.challengeLength,
-        challengeStartDate: todayLocal,
-        customHabits: onboardingState.customHabits,
-        whyMotivations: onboardingState.whyMotivations,
-        pastFailures: onboardingState.pastFailures,
-        seriousness: onboardingState.seriousness,
-        partnerInvited: onboardingState.partnerInvited,
-        reminderTimes: onboardingState.reminderTimes,
-        weightKg: onboardingState.weightKg ?? undefined,
-        waterGoalMl: onboardingState.waterGoalMl,
-      });
+
+      if (prefs !== null) {
+        // Draft already in DB (saved on mount or on a previous app session).
+        // Username may or may not be claimed — only claim if still needed.
+        if (onboardingState.username && myUsername === null) {
+          try {
+            await claimUsername({
+              username: onboardingState.username,
+              displayName: onboardingState.username,
+            });
+          } catch {
+            setSaving(false);
+            router.replace('/onboarding/username');
+            return;
+          }
+        }
+        await markOnboardingComplete({ challengeStartDate: todayLocal });
+      } else {
+        // Draft save didn't complete — do the full save now.
+        if (onboardingState.username) {
+          try {
+            await claimUsername({
+              username: onboardingState.username,
+              displayName: onboardingState.username,
+            });
+          } catch {
+            setSaving(false);
+            router.replace('/onboarding/username');
+            return;
+          }
+        }
+        await savePreferences({
+          name: onboardingState.name,
+          challenge: onboardingState.challenge ?? '75-hard',
+          challengeLength: onboardingState.challengeLength,
+          challengeStartDate: todayLocal,
+          customHabits: onboardingState.customHabits,
+          whyMotivations: onboardingState.whyMotivations,
+          pastFailures: onboardingState.pastFailures,
+          seriousness: onboardingState.seriousness,
+          partnerInvited: onboardingState.partnerInvited,
+          reminderTimes: onboardingState.reminderTimes,
+          weightKg: onboardingState.weightKg ?? undefined,
+          waterGoalMl: onboardingState.waterGoalMl,
+          onboardingCompleted: true,
+        });
+      }
+
+      clearOnboardingDraft();
       router.replace('/');
     } catch (e: unknown) {
       const err = e as { userCancelled?: boolean; message?: string };
@@ -267,6 +340,40 @@ export default function PaywallScreen() {
             ? 'restored'
             : 'transferred';
         if (status) syncStatus({ status, source }).catch(() => {});
+
+        const todayLocal = new Date().toLocaleDateString('en-CA');
+
+        if (prefs !== null && prefs.onboardingCompleted === false) {
+          // Draft exists — mark it complete with today's start date.
+          await markOnboardingComplete({ challengeStartDate: todayLocal });
+        } else if (prefs === null && onboardingState.name) {
+          // No draft but we have in-memory data — save and complete.
+          if (onboardingState.username && myUsername === null) {
+            await claimUsername({
+              username: onboardingState.username,
+              displayName: onboardingState.username,
+            }).catch(() => {});
+          }
+          await savePreferences({
+            name: onboardingState.name,
+            challenge: onboardingState.challenge ?? '75-hard',
+            challengeLength: onboardingState.challengeLength,
+            challengeStartDate: todayLocal,
+            customHabits: onboardingState.customHabits,
+            whyMotivations: onboardingState.whyMotivations,
+            pastFailures: onboardingState.pastFailures,
+            seriousness: onboardingState.seriousness,
+            partnerInvited: onboardingState.partnerInvited,
+            reminderTimes: onboardingState.reminderTimes,
+            weightKg: onboardingState.weightKg ?? undefined,
+            waterGoalMl: onboardingState.waterGoalMl,
+            onboardingCompleted: true,
+          });
+        }
+        // If prefs already complete (returning subscriber restoring on existing account),
+        // nothing to update — just go home.
+
+        clearOnboardingDraft();
         router.replace('/');
       } else {
         setError('No active subscription found.');

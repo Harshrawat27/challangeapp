@@ -2,8 +2,9 @@ import { Colors, Font, Radius, type Theme } from '@/constants/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
@@ -11,6 +12,9 @@ import {
   useColorScheme,
   useWindowDimensions,
 } from 'react-native';
+import { authClient } from '@/lib/auth-client';
+import { clearPrefsCache } from '@/lib/convex-api';
+import { clearOnboardingDraft } from '@/lib/onboarding-store';
 import Animated, {
   Easing,
   FadeIn,
@@ -177,8 +181,21 @@ export default function Welcome() {
   const T = Colors[isDark ? 'dark' : 'light'];
   const insets = useSafeAreaInsets();
   const { height: screenH } = useWindowDimensions();
+  const { data: session } = authClient.useSession();
+  const [signingOut, setSigningOut] = useState(false);
 
   const IMAGES_H = Math.round(screenH * 0.62);
+
+  const handleSignIn = async () => {
+    if (session) {
+      setSigningOut(true);
+      clearPrefsCache();
+      clearOnboardingDraft();
+      await authClient.signOut().catch(() => {});
+      setSigningOut(false);
+    }
+    router.push('/onboarding/sign-in');
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: T.background }}>
@@ -281,25 +298,30 @@ export default function Welcome() {
         {/* Sign in link */}
         <Animated.View entering={FadeInDown.delay(380).duration(400)}>
           <Pressable
-            onPress={() => router.push('/onboarding/sign-in')}
+            onPress={handleSignIn}
+            disabled={signingOut}
             style={({ pressed }) => ({
               alignItems: 'center',
               marginTop: 16,
-              opacity: pressed ? 0.6 : 1,
+              opacity: pressed || signingOut ? 0.6 : 1,
             })}
           >
-            <Text
-              style={{
-                fontFamily: Font.bodyReg,
-                fontSize: 13,
-                color: T.textDim,
-              }}
-            >
-              Already have an account?{' '}
-              <Text style={{ fontFamily: Font.bodySemi, color: T.text }}>
-                Sign in
+            {signingOut ? (
+              <ActivityIndicator size='small' color={T.textDim} />
+            ) : (
+              <Text
+                style={{
+                  fontFamily: Font.bodyReg,
+                  fontSize: 13,
+                  color: T.textDim,
+                }}
+              >
+                Already have an account?{' '}
+                <Text style={{ fontFamily: Font.bodySemi, color: T.text }}>
+                  Sign in
+                </Text>
               </Text>
-            </Text>
+            )}
           </Pressable>
         </Animated.View>
       </View>

@@ -35,13 +35,15 @@ export type UserPreferencesSaveArgs = {
   reminderTimes: ReminderTimes;
   weightKg?: number;
   waterGoalMl?: number;
+  onboardingCompleted?: boolean;     // false = draft, true = paid & done
 };
 
 export type UserPreferencesRow = UserPreferencesSaveArgs & {
   _id: string;
   _creationTime: number;
   userId: string;
-  onboardingCompletedAt: string;
+  onboardingCompleted?: boolean;
+  onboardingCompletedAt?: string;
   subscriptionStatus?: 'weekly' | 'monthly' | 'yearly' | 'expired';
   profilePictureId?: string;
 };
@@ -59,6 +61,12 @@ const userPreferencesPatch = makeFunctionReference<
   { waterGoalMl?: number; weightKg?: number },
   void
 >('userPreferences:patchPrefs');
+
+const userPreferencesMarkComplete = makeFunctionReference<
+  'mutation',
+  { challengeStartDate: string },
+  void
+>('userPreferences:markOnboardingComplete');
 
 const userPreferencesSyncSubscription = makeFunctionReference<
   'mutation',
@@ -86,6 +94,11 @@ export function useSavePreferences() {
 /** Partial update — only send the fields you want to change. */
 export function usePatchPrefs() {
   return useMutation(userPreferencesPatch);
+}
+
+/** After successful payment: sets challengeStartDate to today and marks onboardingCompleted: true. */
+export function useMarkOnboardingComplete() {
+  return useMutation(userPreferencesMarkComplete);
 }
 
 /** Fast-path: sync subscription status to Convex right after a RC purchase, before the webhook arrives. */
@@ -121,12 +134,11 @@ export function useMyPreferences(): UserPreferencesRow | null | undefined {
 
 const PREFS_CACHE_KEY = 'cached_prefs_v1';
 
-// Module-level setter — registered by the hook, called by clearPrefsCache()
-// so that sign-out/delete-account resets the in-memory React state immediately,
-// not just the SecureStore value. Without this, RootLayoutNav never unmounts so
-// the cached state persists in memory across sign-out → new user sign-in, causing
-// the new user to land on home instead of onboarding.
+// Module-level flags — updated synchronously so renders immediately after
+// clearPrefsCache() don't see stale cached data before the async setCached(undefined)
+// has been processed by React.
 let _resetCachedPrefs: (() => void) | null = null;
+let _cacheInvalidated = false; // set synchronously in clearPrefsCache()
 
 export function useCachedPreferences(): UserPreferencesRow | null | undefined {
   const [cached, setCached] = useState<UserPreferencesRow | null | undefined>(() => {
@@ -147,28 +159,35 @@ export function useCachedPreferences(): UserPreferencesRow | null | undefined {
   const live = useMyPreferences();
 
   useEffect(() => {
-    if (live === undefined || live === null) return;
-    // Only update cache from confirmed non-null Convex data.
-    // We deliberately never clear the cache here — a null from Convex can be
-    // a transient auth-sync artefact (Convex token not yet applied), not
-    // evidence that the row is gone. The cache is cleared explicitly on
-    // sign-out via clearPrefsCache().
+    if (live === undefined) {
+      // Convex is re-fetching (new auth token applied) — cache is no longer stale.
+      _cacheInvalidated = false;
+      return;
+    }
+    if (live === null) return;
+    // Real prefs loaded — update cache.
+    _cacheInvalidated = false;
     setCached(live);
     try { SecureStore.setItem(PREFS_CACHE_KEY, JSON.stringify(live)); } catch {}
   }, [live]);
 
   // Return priority:
-  //   1. Real Convex data when it's confirmed non-null
-  //   2. SecureStore cache (covers the Convex auth-sync window)
-  //   3. null  — only when both live AND cache are null/undefined (truly new user)
-  //   4. undefined — still loading
-  if (live !== undefined && live !== null) return live;
-  if (cached !== undefined) return cached;
-  return live; // null (confirmed new user, no cache) or undefined (loading)
+  //   1. Definitive Convex answer (null or data) when the cache hasn't been
+  //      synchronously invalidated — live === null after sign-out is real, not transient.
+  //   2. SecureStore cache when Convex is loading (live === undefined) and cache is valid.
+  //   3. undefined — Convex loading, cache cleared/invalidated.
+  if (live !== undefined) {
+    // live is null or a real row. Only skip it if cache was JUST invalidated
+    // and live is null (could be the stale pre-sign-out null overlapping the reset).
+    if (!(_cacheInvalidated && live === null)) return live;
+  }
+  if (!_cacheInvalidated && cached !== undefined) return cached;
+  return undefined;
 }
 
 /** Call this on sign-out/delete so the next user on this device starts cache-clean. */
 export function clearPrefsCache() {
+  _cacheInvalidated = true; // synchronous — takes effect on the very next render
   SecureStore.deleteItemAsync(PREFS_CACHE_KEY).catch(() => {});
   _resetCachedPrefs?.();
 }
