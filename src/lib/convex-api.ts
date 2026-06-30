@@ -192,6 +192,16 @@ export function clearPrefsCache() {
   _resetCachedPrefs?.();
 }
 
+/**
+ * Called by the routing layer once it has acknowledged the invalidated state
+ * (i.e. it saw prefs===undefined while convexSynced was false). After that
+ * point, any live===null from Convex is the definitive post-auth answer, so
+ * the invalidation flag no longer needs to mask it.
+ */
+export function clearCacheInvalidatedFlag() {
+  _cacheInvalidated = false;
+}
+
 // ─── dailyLogs ─────────────────────────────────────────────────────────────
 
 export type DailyLog = {

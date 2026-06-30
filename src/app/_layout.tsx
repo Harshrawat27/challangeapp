@@ -25,7 +25,7 @@ import * as SecureStore from 'expo-secure-store';
 import { authClient } from '@/lib/auth-client';
 import { ConvexAuthSetup } from '@/lib/auth/ConvexAuthSetup';
 import { OnboardingProvider } from '@/lib/onboarding-store';
-import { useCachedPreferences } from '@/lib/convex-api';
+import { useCachedPreferences, clearCacheInvalidatedFlag } from '@/lib/convex-api';
 import { SubscriptionProvider } from '@/lib/subscription-context';
 import { configurePurchases, loginPurchases, logoutPurchases } from '@/lib/purchases';
 import { Colors } from '@/constants/theme';
@@ -106,7 +106,10 @@ function RootLayoutNav() {
     // This prevents routing on the stale pre-auth null that briefly appears
     // right after sign-in before Convex picks up the new token.
     if (!convexSyncedRef.current) {
-      if (prefs === undefined) convexSyncedRef.current = true; // Convex is now re-fetching
+      if (prefs === undefined) {
+        convexSyncedRef.current = true; // Convex is now re-fetching (or stale null was masked)
+        clearCacheInvalidatedFlag();    // Unblock live===null: next null from Convex is definitive
+      }
       return;
     }
 
