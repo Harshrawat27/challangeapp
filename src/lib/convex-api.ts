@@ -121,15 +121,13 @@ export function useMyPreferences(): UserPreferencesRow | null | undefined {
 
 const PREFS_CACHE_KEY = 'cached_prefs_v1';
 
-/**
- * Like `useMyPreferences` but reads a SecureStore cache synchronously on first
- * render, so the UI has real data before the first Convex round-trip completes.
- *
- * Safety contract:
- *  - Cache is only ever written FROM Convex data — never the other direction.
- *  - Convex is always source of truth; cached data is display-only.
- *  - Cache is cleared when Convex returns null (no onboarding row).
- */
+// Module-level setter — registered by the hook, called by clearPrefsCache()
+// so that sign-out/delete-account resets the in-memory React state immediately,
+// not just the SecureStore value. Without this, RootLayoutNav never unmounts so
+// the cached state persists in memory across sign-out → new user sign-in, causing
+// the new user to land on home instead of onboarding.
+let _resetCachedPrefs: (() => void) | null = null;
+
 export function useCachedPreferences(): UserPreferencesRow | null | undefined {
   const [cached, setCached] = useState<UserPreferencesRow | null | undefined>(() => {
     try {
@@ -139,6 +137,12 @@ export function useCachedPreferences(): UserPreferencesRow | null | undefined {
       return undefined;
     }
   });
+
+  // Register the reset callback so clearPrefsCache() can wipe React state too.
+  useEffect(() => {
+    _resetCachedPrefs = () => setCached(undefined);
+    return () => { _resetCachedPrefs = null; };
+  }, []);
 
   const live = useMyPreferences();
 
@@ -163,9 +167,10 @@ export function useCachedPreferences(): UserPreferencesRow | null | undefined {
   return live; // null (confirmed new user, no cache) or undefined (loading)
 }
 
-/** Call this on sign-out so the next user on this device starts cache-clean. */
+/** Call this on sign-out/delete so the next user on this device starts cache-clean. */
 export function clearPrefsCache() {
   SecureStore.deleteItemAsync(PREFS_CACHE_KEY).catch(() => {});
+  _resetCachedPrefs?.();
 }
 
 // ─── dailyLogs ─────────────────────────────────────────────────────────────

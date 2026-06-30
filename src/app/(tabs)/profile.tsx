@@ -239,6 +239,7 @@ export default function ProfileScreen() {
           onPress: async () => {
             setDeleting(true);
             try {
+              clearPrefsCache();
               await authClient.deleteUser();
               // Session is invalidated; root _layout redirects.
             } catch (e) {

@@ -27,18 +27,23 @@ export default function SignInScreen() {
   const onGoogle = async () => {
     setError(null);
     setSocialLoading('google');
+    console.log('[SignIn] Google sign-in started');
     try {
-      await authClient.signIn.social({ provider: 'google', callbackURL: '/' });
-    } catch {
+      const result = await authClient.signIn.social({ provider: 'google', callbackURL: '/' });
+      console.log('[SignIn] Google sign-in result:', JSON.stringify(result));
+    } catch (e) {
+      console.error('[SignIn] Google sign-in error:', e);
       setError('Could not sign in. Please try again.');
     } finally {
       setSocialLoading(null);
+      console.log('[SignIn] Google sign-in finished');
     }
   };
 
   const onApple = async () => {
     setError(null);
     setSocialLoading('apple');
+    console.log('[SignIn] Apple sign-in started');
     try {
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
@@ -46,16 +51,23 @@ export default function SignInScreen() {
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
       });
+      console.log('[SignIn] Apple credential received, has token:', !!credential.identityToken);
       if (!credential.identityToken) throw new Error('No identity token');
-      await authClient.signIn.social({
+      const result = await authClient.signIn.social({
         provider: 'apple',
         idToken: { token: credential.identityToken },
       } as never);
+      console.log('[SignIn] Apple sign-in result:', JSON.stringify(result));
     } catch (e: unknown) {
-      if ((e as { code?: string })?.code === 'ERR_REQUEST_CANCELED') return;
+      if ((e as { code?: string })?.code === 'ERR_REQUEST_CANCELED') {
+        console.log('[SignIn] Apple sign-in cancelled by user');
+        return;
+      }
+      console.error('[SignIn] Apple sign-in error:', e);
       setError('Apple sign-in failed. Please try again.');
     } finally {
       setSocialLoading(null);
+      console.log('[SignIn] Apple sign-in finished');
     }
   };
 

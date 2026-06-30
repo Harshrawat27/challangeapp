@@ -65,24 +65,35 @@ function RootLayoutNav() {
   }, [session?.user?.id, isPending]);
 
   useEffect(() => {
+    console.log('[Layout] routing effect — isPending:', isPending, '| session:', !!session, '| pathname:', pathname, '| prefs:', prefs === undefined ? 'undefined' : prefs === null ? 'null' : 'loaded');
     if (isPending) return;
 
     const onUnauthed = isUnauthedRoute(pathname);
 
     if (!session) {
       // Not signed in → bounce to onboarding unless already on an unauthed screen
-      if (!onUnauthed) router.replace('/onboarding/welcome');
+      if (!onUnauthed) {
+        console.log('[Layout] no session, redirecting to onboarding/welcome');
+        router.replace('/onboarding/welcome');
+      }
       hasRouted.current = true;
       return;
     }
 
     // Signed in — wait for prefs to resolve before making routing decisions.
     // undefined = still loading; null = no onboarding row; object = complete.
-    if (prefs === undefined) return;
+    if (prefs === undefined) {
+      console.log('[Layout] session exists but prefs still loading, waiting...');
+      return;
+    }
 
     // Signed in but onboarding never completed (Google/Apple new users,
     // or users who signed up then closed before finishing).
-    if (prefs === null && !pathname.startsWith('/onboarding')) {
+    // Also covers /onboarding/sign-in — a new user who signed in via "already
+    // have an account" but has no prefs row yet should start onboarding.
+    const onSignInScreen = pathname === '/onboarding/sign-in' || pathname === '/sign-in';
+    if (prefs === null && (!pathname.startsWith('/onboarding') || onSignInScreen)) {
+      console.log('[Layout] no prefs, redirecting to onboarding/welcome');
       router.replace('/onboarding/welcome');
       hasRouted.current = true;
       return;
@@ -91,10 +102,12 @@ function RootLayoutNav() {
     // Signed in with prefs on an onboarding or auth screen → go home.
     // Covers returning users who land on /onboarding/welcome after sign-in.
     if (prefs !== null && onUnauthed) {
+      console.log('[Layout] has prefs + on unauthed screen, redirecting to home');
       router.replace('/');
       hasRouted.current = true;
       return;
     }
+    console.log('[Layout] no redirect needed, staying on:', pathname);
     hasRouted.current = true;
   }, [session, isPending, pathname, prefs]);
 
