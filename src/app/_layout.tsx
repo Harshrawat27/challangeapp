@@ -118,14 +118,12 @@ function RootLayoutNav() {
     if (redirectTo) router.replace(redirectTo);
   }, [isPending, redirectTo]);
 
-  // Show the loader (never a real screen) until routing has SETTLED on the correct
-  // destination. Because `route` also drives the redirect effect above, the current
-  // screen only renders once `pathname` already matches where the user belongs — so
-  // the user sees loader → correct screen, never wrong-screen → correct screen.
-  // During a post-resolve session refresh (isPending) we intentionally hold the
-  // current screen rather than flashing the loader / tearing down onboarding state.
-  const settling = !isPending && route.kind !== 'ready';
-  if (!hasResolved.current || settling) {
+  // Full-screen loader ONLY while the session or prefs are still resolving. In this
+  // state no redirect is pending (redirectTo is null), so the navigator isn't needed
+  // and it's safe to not mount the Stack. Crucially we do NOT unmount the Stack to
+  // show a loader while a redirect is in flight — router.replace() needs the
+  // navigator mounted, and unmounting it mid-redirect loses the navigation and loops.
+  if (!hasResolved.current || (session && prefs === undefined)) {
     return (
       <View style={{ flex: 1, backgroundColor: bg, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator color={colorScheme === 'dark' ? '#FAFAFA' : '#0A0A0A'} />
@@ -154,6 +152,26 @@ function RootLayoutNav() {
         <Stack.Screen name='scan' options={{ presentation: 'fullScreenModal' }} />
         <Stack.Screen name='photo-viewer' options={{ presentation: 'fullScreenModal' }} />
       </Stack>
+
+      {/* Redirect in flight: cover the (briefly wrong) current screen with a loader
+          OVERLAY. The Stack underneath stays mounted so router.replace() works and
+          navigation isn't lost — the user just sees loader → correct screen. */}
+      {route.kind === 'redirect' && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: bg,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <ActivityIndicator color={colorScheme === 'dark' ? '#FAFAFA' : '#0A0A0A'} />
+        </View>
+      )}
     </>
   );
 }
