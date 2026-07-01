@@ -38,6 +38,51 @@ function isUnauthedRoute(pathname: string): boolean {
   );
 }
 
+type RouteResolution =
+  | { kind: 'loading' }                 // still resolving — show the loader, decide nothing
+  | { kind: 'ready' }                   // current screen is the correct destination
+  | { kind: 'redirect'; to: string };   // wrong screen — loader until we've navigated to `to`
+
+/**
+ * Single source of truth for "where does this user belong right now?" Used by BOTH
+ * the redirect effect and the render gate, so they can never disagree. (The old
+ * wrong-screen flash came from the render gate opening before the redirect landed:
+ * the correct screen only renders once `pathname` already matches the destination.)
+ */
+function resolveRoute(
+  signedIn: boolean,
+  prefs: object | null | undefined,
+  pathname: string,
+): RouteResolution {
+  const onUnauthed = isUnauthedRoute(pathname);
+
+  // Not signed in → belongs on an unauthed screen.
+  if (!signedIn) {
+    return onUnauthed ? { kind: 'ready' } : { kind: 'redirect', to: '/onboarding/welcome' };
+  }
+
+  // Signed in but prefs not resolved yet (Convex auth not applied, or query loading).
+  if (prefs === undefined) return { kind: 'loading' };
+
+  const onSignInScreen = pathname === '/onboarding/sign-in' || pathname === '/sign-in';
+
+  // No prefs row → belongs in onboarding. Stay put only on a genuine onboarding
+  // screen (so a user mid-onboarding isn't yanked away); the sign-in screen should
+  // proceed into onboarding once signed in.
+  if (prefs === null) {
+    const inOnboarding = pathname.startsWith('/onboarding') && !onSignInScreen;
+    return inOnboarding ? { kind: 'ready' } : { kind: 'redirect', to: '/onboarding/welcome' };
+  }
+
+  // Has a prefs row (draft OR complete) → the user "owns" the app; the home screen
+  // gates the locked/unpaid state internally. The paywall is a point of no return:
+  // once here the draft-save creates a prefs row, and we must NOT pull them off it —
+  // they buy or close the app. Every other unauthed screen → send them home.
+  if (pathname === '/onboarding/paywall') return { kind: 'ready' };
+  if (onUnauthed) return { kind: 'redirect', to: '/' };
+  return { kind: 'ready' };
+}
+
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const bg = colorScheme === 'dark' ? Colors.dark.background : Colors.light.background;
@@ -63,47 +108,24 @@ function RootLayoutNav() {
     }
   }, [session?.user?.id, isPending]);
 
+  const route = resolveRoute(!!session, prefs, pathname);
+  const redirectTo = route.kind === 'redirect' ? route.to : null;
+
   useEffect(() => {
+    // Don't route during a session refresh — hold the current screen instead of
+    // tearing the Stack down. `redirectTo` fully captures the decision.
     if (isPending) return;
+    if (redirectTo) router.replace(redirectTo);
+  }, [isPending, redirectTo]);
 
-    const onUnauthed = isUnauthedRoute(pathname);
-
-    // Not signed in → onboarding, unless already on an unauthed screen.
-    if (!session) {
-      if (!onUnauthed) router.replace('/onboarding/welcome');
-      return;
-    }
-
-    // Signed in. `prefs` from useCachedPreferences is now unambiguous:
-    //   undefined → not resolved (Convex auth not applied yet, or query loading)
-    //               → never route on this; the loading gate below shows a spinner.
-    //   null      → Convex authenticated + backend confirmed NO prefs row.
-    //   object    → the user has preferences (draft or complete).
-    if (prefs === undefined) return;
-
-    const onSignInScreen = pathname === '/onboarding/sign-in' || pathname === '/sign-in';
-
-    // No prefs row → send to onboarding. Also backstops the "somehow on an authed
-    // screen (e.g. home) with no data" case: any non-onboarding screen with a
-    // confirmed-null prefs bounces to welcome. We stay put only on the active
-    // onboarding screens (so a user mid-onboarding isn't yanked away), except the
-    // sign-in screen which should proceed into onboarding once signed in.
-    if (prefs === null) {
-      if (!pathname.startsWith('/onboarding') || onSignInScreen) {
-        router.replace('/onboarding/welcome');
-      }
-      return;
-    }
-
-    // Has prefs → home, but only if currently parked on an unauthed/onboarding screen.
-    // The app handles the unpaid/locked state internally once on the home screen.
-    if (onUnauthed) router.replace('/');
-  }, [session, isPending, pathname, prefs]);
-
-  // Block render until session resolves AND (if signed in) prefs resolves too.
-  // The prefs check prevents a flash of the home screen before we can redirect
-  // a new Google/Apple user to onboarding.
-  if (!hasResolved.current || (session && prefs === undefined)) {
+  // Show the loader (never a real screen) until routing has SETTLED on the correct
+  // destination. Because `route` also drives the redirect effect above, the current
+  // screen only renders once `pathname` already matches where the user belongs — so
+  // the user sees loader → correct screen, never wrong-screen → correct screen.
+  // During a post-resolve session refresh (isPending) we intentionally hold the
+  // current screen rather than flashing the loader / tearing down onboarding state.
+  const settling = !isPending && route.kind !== 'ready';
+  if (!hasResolved.current || settling) {
     return (
       <View style={{ flex: 1, backgroundColor: bg, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator color={colorScheme === 'dark' ? '#FAFAFA' : '#0A0A0A'} />

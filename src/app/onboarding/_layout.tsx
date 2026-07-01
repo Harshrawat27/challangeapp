@@ -25,7 +25,9 @@ export default function OnboardingLayout() {
       <Stack.Screen name='water' />
       <Stack.Screen name='username' />
       <Stack.Screen name='account' />
-      <Stack.Screen name='paywall' />
+      {/* Paywall is a point of no return: no swipe-back. The user buys (→ home)
+          or closes the app; on reopen the root layout lands them on home. */}
+      <Stack.Screen name='paywall' options={{ gestureEnabled: false }} />
       <Stack.Screen name='sign-in' />
     </Stack>
   );
