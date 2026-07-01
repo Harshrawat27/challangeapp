@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { makeFunctionReference } from 'convex/server';
-import { useAction, useMutation, useQuery } from 'convex/react';
+import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react';
 
 // ─── userPreferences ───────────────────────────────────────────────────────
 
@@ -134,12 +134,27 @@ export function useMyPreferences(): UserPreferencesRow | null | undefined {
 
 const PREFS_CACHE_KEY = 'cached_prefs_v1';
 
-// Module-level flags — updated synchronously so renders immediately after
-// clearPrefsCache() don't see stale cached data before the async setCached(undefined)
-// has been processed by React.
+// Lets clearPrefsCache() wipe the in-memory React state (not just SecureStore).
 let _resetCachedPrefs: (() => void) | null = null;
-let _cacheInvalidated = false; // set synchronously in clearPrefsCache()
 
+/**
+ * Preferences for routing + UI, with a SecureStore fast-path.
+ *
+ * Semantics of the return value (relied on by _layout routing):
+ *   - `undefined` → not resolved yet. Either Convex hasn't applied the auth
+ *      token (fresh sign-in) or the query is still loading and there's no cache.
+ *      Callers should show a spinner and make NO routing decision.
+ *   - `null`      → Convex is authenticated AND the backend confirmed there is
+ *      no preferences row. This is definitive — safe to send the user to
+ *      onboarding. (We never surface a pre-auth `null`.)
+ *   - object      → the user's preferences (a live row, or the SecureStore
+ *      cache as an instant fast-path for a returning user on cold start).
+ *
+ * The key correctness rule: `userPreferences:get` returns `null` when Convex is
+ * UNAUTHENTICATED (before the token is applied right after sign-in), which is
+ * indistinguishable from "authenticated but no row". So we only trust a `null`
+ * once `useConvexAuth()` reports the backend has confirmed the token.
+ */
 export function useCachedPreferences(): UserPreferencesRow | null | undefined {
   const [cached, setCached] = useState<UserPreferencesRow | null | undefined>(() => {
     try {
@@ -157,49 +172,34 @@ export function useCachedPreferences(): UserPreferencesRow | null | undefined {
   }, []);
 
   const live = useMyPreferences();
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  // `isAuthenticated` flips true only after the Convex backend confirms the
+  // token (queries have re-run under the new identity by then), and
+  // `isLoading` covers the transitional window right after sign-in.
+  const convexReady = isAuthenticated && !isLoading;
 
   useEffect(() => {
-    if (live === undefined) {
-      // Convex is re-fetching (new auth token applied) — cache is no longer stale.
-      _cacheInvalidated = false;
-      return;
-    }
-    if (live === null) return;
-    // Real prefs loaded — update cache.
-    _cacheInvalidated = false;
+    if (live === undefined || live === null) return;
+    // Real prefs row loaded — refresh the cache for the next cold start.
     setCached(live);
     try { SecureStore.setItem(PREFS_CACHE_KEY, JSON.stringify(live)); } catch {}
   }, [live]);
 
   // Return priority:
-  //   1. Definitive Convex answer (null or data) when the cache hasn't been
-  //      synchronously invalidated — live === null after sign-out is real, not transient.
-  //   2. SecureStore cache when Convex is loading (live === undefined) and cache is valid.
-  //   3. undefined — Convex loading, cache cleared/invalidated.
-  if (live !== undefined) {
-    // live is null or a real row. Only skip it if cache was JUST invalidated
-    // and live is null (could be the stale pre-sign-out null overlapping the reset).
-    if (!(_cacheInvalidated && live === null)) return live;
-  }
-  if (!_cacheInvalidated && cached !== undefined) return cached;
+  //   1. Live value once auth is confirmed — authoritative (null or row).
+  //   2. SecureStore cache — instant home for a returning user while Convex
+  //      re-authenticates on cold start. Only ever a row (we never cache null),
+  //      so this can't produce a spurious "no prefs" answer.
+  //   3. undefined — nothing to show yet; caller shows a spinner and waits.
+  if (convexReady && live !== undefined) return live;
+  if (cached !== undefined) return cached;
   return undefined;
 }
 
 /** Call this on sign-out/delete so the next user on this device starts cache-clean. */
 export function clearPrefsCache() {
-  _cacheInvalidated = true; // synchronous — takes effect on the very next render
   SecureStore.deleteItemAsync(PREFS_CACHE_KEY).catch(() => {});
   _resetCachedPrefs?.();
-}
-
-/**
- * Called by the routing layer once it has acknowledged the invalidated state
- * (i.e. it saw prefs===undefined while convexSynced was false). After that
- * point, any live===null from Convex is the definitive post-auth answer, so
- * the invalidation flag no longer needs to mask it.
- */
-export function clearCacheInvalidatedFlag() {
-  _cacheInvalidated = false;
 }
 
 // ─── dailyLogs ─────────────────────────────────────────────────────────────

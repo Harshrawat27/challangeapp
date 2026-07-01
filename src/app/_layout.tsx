@@ -25,7 +25,7 @@ import * as SecureStore from 'expo-secure-store';
 import { authClient } from '@/lib/auth-client';
 import { ConvexAuthSetup } from '@/lib/auth/ConvexAuthSetup';
 import { OnboardingProvider } from '@/lib/onboarding-store';
-import { useCachedPreferences, clearCacheInvalidatedFlag } from '@/lib/convex-api';
+import { useCachedPreferences } from '@/lib/convex-api';
 import { SubscriptionProvider } from '@/lib/subscription-context';
 import { configurePurchases, loginPurchases, logoutPurchases } from '@/lib/purchases';
 import { Colors } from '@/constants/theme';
@@ -45,28 +45,6 @@ function RootLayoutNav() {
   const { data: session, isPending } = authClient.useSession();
   const prefs = useCachedPreferences();
   const pathname = usePathname();
-  const hasRouted = useRef(false);
-
-  // After a fresh sign-in the Convex query briefly returns the stale pre-auth null
-  // (from the unauthenticated subscription) before cycling to undefined → real data.
-  // convexSyncedRef tracks whether we've seen that undefined cycle for the current
-  // session. We skip routing decisions while waiting for it.
-  const convexSyncedRef = useRef(true); // true = safe to route on prefs
-  const prevSessionActiveRef = useRef(!!session && !isPending);
-
-  useEffect(() => {
-    const wasActive = prevSessionActiveRef.current;
-    const isActive = !!session && !isPending;
-    prevSessionActiveRef.current = isActive;
-
-    if (!wasActive && isActive) {
-      // Session just became active — Convex needs to re-fetch with the new token.
-      // Don't route until we've seen prefs cycle through undefined.
-      convexSyncedRef.current = false;
-    } else if (!isActive) {
-      convexSyncedRef.current = true; // signed out, no sync needed
-    }
-  }, [session, isPending]);
 
   // Tracks whether the session has ever resolved. Once it has, we never tear
   // down the Stack again — even if `isPending` flips back to true during a
@@ -86,60 +64,40 @@ function RootLayoutNav() {
   }, [session?.user?.id, isPending]);
 
   useEffect(() => {
-    console.log('[Layout] routing effect — isPending:', isPending, '| session:', !!session, '| pathname:', pathname, '| prefs:', prefs === undefined ? 'undefined' : prefs === null ? 'null' : 'loaded');
     if (isPending) return;
 
     const onUnauthed = isUnauthedRoute(pathname);
 
+    // Not signed in → onboarding, unless already on an unauthed screen.
     if (!session) {
-      // Not signed in → bounce to onboarding unless already on an unauthed screen
-      if (!onUnauthed) {
-        console.log('[Layout] no session, redirecting to onboarding/welcome');
+      if (!onUnauthed) router.replace('/onboarding/welcome');
+      return;
+    }
+
+    // Signed in. `prefs` from useCachedPreferences is now unambiguous:
+    //   undefined → not resolved (Convex auth not applied yet, or query loading)
+    //               → never route on this; the loading gate below shows a spinner.
+    //   null      → Convex authenticated + backend confirmed NO prefs row.
+    //   object    → the user has preferences (draft or complete).
+    if (prefs === undefined) return;
+
+    const onSignInScreen = pathname === '/onboarding/sign-in' || pathname === '/sign-in';
+
+    // No prefs row → send to onboarding. Also backstops the "somehow on an authed
+    // screen (e.g. home) with no data" case: any non-onboarding screen with a
+    // confirmed-null prefs bounces to welcome. We stay put only on the active
+    // onboarding screens (so a user mid-onboarding isn't yanked away), except the
+    // sign-in screen which should proceed into onboarding once signed in.
+    if (prefs === null) {
+      if (!pathname.startsWith('/onboarding') || onSignInScreen) {
         router.replace('/onboarding/welcome');
       }
-      hasRouted.current = true;
       return;
     }
 
-    // After sign-in, skip routing until Convex has cycled through undefined
-    // (confirming the new auth token was applied and query re-ran).
-    // This prevents routing on the stale pre-auth null that briefly appears
-    // right after sign-in before Convex picks up the new token.
-    if (!convexSyncedRef.current) {
-      if (prefs === undefined) {
-        convexSyncedRef.current = true; // Convex is now re-fetching (or stale null was masked)
-        clearCacheInvalidatedFlag();    // Unblock live===null: next null from Convex is definitive
-      }
-      return;
-    }
-
-    // Signed in — wait for prefs to resolve before making routing decisions.
-    // undefined = still loading; null = no onboarding row; object = complete.
-    if (prefs === undefined) {
-      return;
-    }
-
-    // Signed in but no prefs row at all — user hasn't started or finished onboarding.
-    // Also covers /onboarding/sign-in: a new user who signed in via "already have an
-    // account" but has no prefs row yet should start fresh onboarding.
-    const onSignInScreen = pathname === '/onboarding/sign-in' || pathname === '/sign-in';
-    if (prefs === null && (!pathname.startsWith('/onboarding') || onSignInScreen)) {
-      console.log('[Layout] no prefs, redirecting to onboarding/welcome');
-      router.replace('/onboarding/welcome');
-      hasRouted.current = true;
-      return;
-    }
-
-    // Prefs exist (draft or complete) — user has data, send them home.
+    // Has prefs → home, but only if currently parked on an unauthed/onboarding screen.
     // The app handles the unpaid/locked state internally once on the home screen.
-    if (prefs !== null && onUnauthed) {
-      console.log('[Layout] has prefs + on unauthed screen, redirecting to home');
-      router.replace('/');
-      hasRouted.current = true;
-      return;
-    }
-    console.log('[Layout] no redirect needed, staying on:', pathname);
-    hasRouted.current = true;
+    if (onUnauthed) router.replace('/');
   }, [session, isPending, pathname, prefs]);
 
   // Block render until session resolves AND (if signed in) prefs resolves too.
