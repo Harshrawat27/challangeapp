@@ -16,6 +16,7 @@ import Svg, { Path } from 'react-native-svg';
 import { OnboardingFrame } from '@/components/onboarding-frame';
 import { authClient } from '@/lib/auth-client';
 import { Colors, Font, Radius, type Theme } from '@/constants/theme';
+import { useCachedPreferences } from '@/lib/convex-api';
 import { useOnboarding } from '@/lib/onboarding-store';
 
 function GoogleG({ size = 20 }: { size?: number }) {
@@ -96,14 +97,22 @@ export default function AccountScreen() {
 
   const { state } = useOnboarding();
   const { data: session, isPending } = authClient.useSession();
+  const prefs = useCachedPreferences();
   const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isPending && session) {
+    if (isPending || !session) return;
+    // Wait for the backend to confirm whether this account already has data.
+    if (prefs === undefined) return;
+    if (prefs === null) {
+      // Brand-new account → continue to the paywall to finish signup.
       router.replace('/onboarding/paywall');
     }
-  }, [session, isPending]);
+    // Existing account (a prefs row is already in the DB) → the root router
+    // sends them to the "you already have an account" interstitial and then
+    // home. We do nothing here so we don't race it to the paywall.
+  }, [session, isPending, prefs]);
 
   const busy = !!socialLoading;
 
@@ -111,7 +120,10 @@ export default function AccountScreen() {
     setError(null);
     setSocialLoading('google');
     try {
-      await authClient.signIn.social({ provider: 'google', callbackURL: '/onboarding/paywall' });
+      // No callbackURL: navigation is decided by the prefs-aware effect above
+      // (new account → paywall, existing → interstitial), so we must not let the
+      // OAuth return force the paywall for a pre-existing account.
+      await authClient.signIn.social({ provider: 'google' });
     } catch {
       setError('Could not sign in with Google. Please try again.');
     } finally {

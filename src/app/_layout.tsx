@@ -87,8 +87,16 @@ function resolveRoute(
   // Has a prefs row (draft OR complete) → the user "owns" the app; the home screen
   // gates the locked/unpaid state internally. The paywall is a point of no return:
   // once here the draft-save creates a prefs row, and we must NOT pull them off it —
-  // they buy or close the app. Every other unauthed screen → send them home.
+  // they buy or close the app.
+  if (pathname === '/onboarding/existing-account') return { kind: 'ready' };
   if (pathname === '/onboarding/paywall') return { kind: 'ready' };
+  // They just finished onboarding and signed into a PRE-EXISTING account: a fresh
+  // in-memory onboarding draft is still present, yet the DB already has their row.
+  // Show the "you already have an account" interstitial, which drops the fresh
+  // draft and hands them back to their existing data. (The paywall is excluded
+  // above because a brand-new user's own draft-save also yields row + draft.)
+  if (hasOnboardingProgress) return { kind: 'redirect', to: '/onboarding/existing-account' };
+  // Every other unauthed screen → send them home.
   if (onUnauthed) return { kind: 'redirect', to: '/' };
   return { kind: 'ready' };
 }

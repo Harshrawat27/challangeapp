@@ -28,6 +28,9 @@ export default function OnboardingLayout() {
       {/* Paywall is a point of no return: no swipe-back. The user buys (→ home)
           or closes the app; on reopen the root layout lands them on home. */}
       <Stack.Screen name='paywall' options={{ gestureEnabled: false }} />
+      {/* Shown when a user finishes onboarding then signs into a pre-existing
+          account — no swipe-back; it auto-returns them to their existing data. */}
+      <Stack.Screen name='existing-account' options={{ gestureEnabled: false }} />
       <Stack.Screen name='sign-in' />
     </Stack>
   );
