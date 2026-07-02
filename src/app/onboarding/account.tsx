@@ -120,10 +120,12 @@ export default function AccountScreen() {
     setError(null);
     setSocialLoading('google');
     try {
-      // No callbackURL: navigation is decided by the prefs-aware effect above
-      // (new account → paywall, existing → interstitial), so we must not let the
-      // OAuth return force the paywall for a pre-existing account.
-      await authClient.signIn.social({ provider: 'google' });
+      // Return to THIS screen after the OAuth round-trip. A callbackURL is
+      // required so the browser deep-links back into the app instead of landing
+      // on the auth server's web page; we point it at the account screen (not the
+      // paywall) so the prefs-aware effect above decides where to go — new
+      // account → paywall, existing account → interstitial.
+      await authClient.signIn.social({ provider: 'google', callbackURL: '/onboarding/account' });
     } catch {
       setError('Could not sign in with Google. Please try again.');
     } finally {
