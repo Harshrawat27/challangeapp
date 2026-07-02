@@ -30,7 +30,7 @@ export function OnboardingFrame({
 }: {
   step: number;
   children: React.ReactNode;
-  onContinue: () => void;
+  onContinue?: () => void;
   continueLabel?: string;
   continueDisabled?: boolean;
   continueLoading?: boolean;
@@ -117,33 +117,37 @@ export function OnboardingFrame({
           ) : Body}
 
           {/* ── Bottom CTA ───────────────────────────────────── */}
-          <View style={{ paddingHorizontal: 24, paddingTop: 12 }}>
-            {bottomAccessory}
-            <Pressable
-              onPress={onContinue}
-              disabled={continueDisabled || continueLoading}
-              style={({ pressed }) => ({
-                height: 54,
-                borderRadius: Radius.pill,
-                backgroundColor: T.invertBg,
-                justifyContent: 'center',
-                alignItems: 'center',
-                opacity: continueDisabled ? 0.35 : (pressed || continueLoading ? 0.78 : 1),
-              })}>
-              {continueLoading ? (
-                <ActivityIndicator color={T.invertText} />
-              ) : (
-                <Text style={{
-                  fontFamily: Font.displaySemi,
-                  fontSize: 16,
-                  color: T.invertText,
-                  letterSpacing: -0.2,
-                }}>
-                  {continueLabel}
-                </Text>
+          {(onContinue || bottomAccessory) && (
+            <View style={{ paddingHorizontal: 24, paddingTop: 12 }}>
+              {bottomAccessory}
+              {onContinue && (
+                <Pressable
+                  onPress={onContinue}
+                  disabled={continueDisabled || continueLoading}
+                  style={({ pressed }) => ({
+                    height: 54,
+                    borderRadius: Radius.pill,
+                    backgroundColor: T.invertBg,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    opacity: continueDisabled ? 0.35 : (pressed || continueLoading ? 0.78 : 1),
+                  })}>
+                  {continueLoading ? (
+                    <ActivityIndicator color={T.invertText} />
+                  ) : (
+                    <Text style={{
+                      fontFamily: Font.displaySemi,
+                      fontSize: 16,
+                      color: T.invertText,
+                      letterSpacing: -0.2,
+                    }}>
+                      {continueLabel}
+                    </Text>
+                  )}
+                </Pressable>
               )}
-            </Pressable>
-          </View>
+            </View>
+          )}
 
         </KeyboardAvoidingView>
       </SafeAreaView>
