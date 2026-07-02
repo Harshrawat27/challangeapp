@@ -24,7 +24,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import { authClient } from '@/lib/auth-client';
 import { ConvexAuthSetup } from '@/lib/auth/ConvexAuthSetup';
-import { OnboardingProvider } from '@/lib/onboarding-store';
+import { OnboardingProvider, useOnboarding } from '@/lib/onboarding-store';
 import { useCachedPreferences } from '@/lib/convex-api';
 import { SubscriptionProvider } from '@/lib/subscription-context';
 import { configurePurchases, loginPurchases, logoutPurchases } from '@/lib/purchases';
@@ -53,6 +53,7 @@ function resolveRoute(
   signedIn: boolean,
   prefs: object | null | undefined,
   pathname: string,
+  hasOnboardingProgress: boolean,
 ): RouteResolution {
   const onUnauthed = isUnauthedRoute(pathname);
 
@@ -71,7 +72,16 @@ function resolveRoute(
   // proceed into onboarding once signed in.
   if (prefs === null) {
     const inOnboarding = pathname.startsWith('/onboarding') && !onSignInScreen;
-    return inOnboarding ? { kind: 'ready' } : { kind: 'redirect', to: '/onboarding/welcome' };
+    if (inOnboarding) return { kind: 'ready' };
+    // Signed in, no DB row yet, and off the onboarding stack (e.g. the account
+    // screen just authed and the app resumed on home, or an OAuth return reset
+    // the nav). If the user has already filled in onboarding answers, send them
+    // to the paywall to finish — NOT back to welcome, which would restart the
+    // whole flow. The paywall persists a draft of their answers on mount.
+    return {
+      kind: 'redirect',
+      to: hasOnboardingProgress ? '/onboarding/paywall' : '/onboarding/welcome',
+    };
   }
 
   // Has a prefs row (draft OR complete) → the user "owns" the app; the home screen
@@ -90,6 +100,11 @@ function RootLayoutNav() {
   const { data: session, isPending } = authClient.useSession();
   const prefs = useCachedPreferences();
   const pathname = usePathname();
+  const { state: onboarding } = useOnboarding();
+  // A name is captured early in onboarding and required to reach the account
+  // step, so it's a reliable "onboarding in progress" signal for routing a
+  // freshly-signed-in, prefs-less user to the paywall instead of welcome.
+  const hasOnboardingProgress = !!onboarding.name;
 
   // Tracks whether the session has ever resolved. Once it has, we never tear
   // down the Stack again — even if `isPending` flips back to true during a
@@ -108,7 +123,7 @@ function RootLayoutNav() {
     }
   }, [session?.user?.id, isPending]);
 
-  const route = resolveRoute(!!session, prefs, pathname);
+  const route = resolveRoute(!!session, prefs, pathname, hasOnboardingProgress);
   const redirectTo = route.kind === 'redirect' ? route.to : null;
 
   useEffect(() => {
